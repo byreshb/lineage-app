@@ -1,0 +1,1 @@
+bcp "SELECT Name, Path, CONVERT(VARCHAR(23), CreationDate, 121), CONVERT(VARCHAR(23), ModifiedDate, 121), CONVERT(NVARCHAR(MAX), CAST(CAST(Content AS VARBINARY(MAX)) AS XML)) FROM ReportServer.dbo.Catalog WHERE Type = 2 ORDER BY Path" queryout "C:\Users\bboraiah\Desktop\rdl_reports.txt" -S D300SQLDW01 -T -c -t"|"

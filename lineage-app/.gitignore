@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Build output
+backend/dist/
+frontend/dist/
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+backend/logs/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Data files (environment-specific metadata from SQL Server)
+data/
+!data/.gitkeep
+
+# RDL report files (environment-specific)
+reports/
+!reports/.gitkeep
+
+# Backup files
+backup/
+
+# Claude local state
+.claude/
