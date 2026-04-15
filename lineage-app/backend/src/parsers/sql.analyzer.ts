@@ -41,18 +41,23 @@ const FALSE_POSITIVES = new Set([
   'REPORTSERVER', 'REPORTSERVERTEMPDB',
   'STRING_SPLIT', 'OPENJSON', 'OPENXML',
   'INSERTED', 'DELETED',
+  // Common words that appear in comments and should never be table names
+  'OPERATIONS', 'RUNTIME',
 ]);
 
 // Regex patterns
 // Handles both regular names and bracketed names like [TableName+]
-const FOUR_PART_PATTERN = /(?:\[([^\]]+)\]|([A-Za-z][\w]*))\s*\.\s*(?:\[([^\]]+)\]|([A-Za-z][\w]*))\s*\.\s*(?:\[([^\]]+)\]|([A-Za-z][\w]*))\s*\.\s*(?:\[([^\]]+)\]|([A-Za-z][\w]*))/gi;
+// NOTE: Using \w+ (one or more) instead of \w* to ensure full names are captured
+const FOUR_PART_PATTERN = /(?:\[([^\]]+)\]|([A-Za-z]\w+))\s*\.\s*(?:\[([^\]]+)\]|([A-Za-z]\w+))\s*\.\s*(?:\[([^\]]+)\]|([A-Za-z]\w+))\s*\.\s*(?:\[([^\]]+)\]|([A-Za-z]\w+))/gi;
 
-const TWO_PART_PATTERN = /(?:FROM|JOIN|INTO|UPDATE)\s+(?:\[([^\]]+)\]|([A-Za-z][\w]*))\s*\.\s*(?:\[([^\]]+)\]|([A-Za-z][\w]*))(?![.\w])/gi;
+const TWO_PART_PATTERN = /(?:FROM|JOIN|INTO|UPDATE)\s+(?:\[([^\]]+)\]|([A-Za-z]\w+))\s*\.\s*(?:\[([^\]]+)\]|([A-Za-z]\w+))(?![.\w])/gi;
 
 // Three-part: database.schema.table (e.g., [DunnRite].[Prod].[InvoiceDetail])
-const THREE_PART_PATTERN = /(?:FROM|JOIN|INTO|UPDATE)\s+(?:\[([^\]]+)\]|([A-Za-z][\w]*))\s*\.\s*(?:\[([^\]]+)\]|([A-Za-z][\w]*))\s*\.\s*(?:\[([^\]]+)\]|([A-Za-z][\w]*))(?![.\w])/gi;
+const THREE_PART_PATTERN = /(?:FROM|JOIN|INTO|UPDATE)\s+(?:\[([^\]]+)\]|([A-Za-z]\w+))\s*\.\s*(?:\[([^\]]+)\]|([A-Za-z]\w+))\s*\.\s*(?:\[([^\]]+)\]|([A-Za-z]\w+))(?![.\w])/gi;
 
-const ONE_PART_PATTERN = /(?:FROM|JOIN|INTO|UPDATE)\s+(?:\[([^\]]+)\]|([A-Za-z][\w]*))(?!\s*\.)/gi;
+// One-part pattern: (?!\w) ensures we're at word boundary before checking for dot
+// This prevents backtracking truncation (e.g., SRUtil.db -> SRUti)
+const ONE_PART_PATTERN = /(?:FROM|JOIN|INTO|UPDATE)\s+(?:\[([^\]]+)\]|([A-Za-z]\w+))(?!\w)(?!\s*\.)/gi;
 
 const sqlParser = new Parser();
 
@@ -89,6 +94,10 @@ function isValidTableRef(ref: TableReference): boolean {
   if (isKeyword(ref.tableName)) return false;
   if (isFalsePositive(ref.tableName)) return false;
 
+  // Skip table-valued functions (names starting with 'fn')
+  // These appear after JOIN just like tables but are function calls
+  if (ref.tableName.toLowerCase().startsWith('fn')) return false;
+
   // Also check schema for false positives
   if (ref.schema && isFalsePositive(ref.schema)) {
     if (ref.tableName.length < 5) return false;
@@ -101,9 +110,18 @@ function cleanSql(sql: string): string {
   // Remove multi-line comments
   let cleaned = sql.replace(/\/\*[\s\S]*?\*\//g, ' ');
 
-  // Remove single-line comments only if SQL has line breaks
-  if (sql.includes('\n') || sql.includes('\r')) {
+  // Remove single-line comments more carefully
+  // If the SQL has newlines, remove -- comments to end of line
+  // If no newlines, only remove -- comments that end at a SQL keyword boundary
+  if (cleaned.includes('\n') || cleaned.includes('\r')) {
+    // Has newlines - safe to remove to end of line
     cleaned = cleaned.replace(/--[^\r\n]*/g, ' ');
+  } else {
+    // No newlines - only remove -- comments before major SQL keywords
+    // This prevents removing the entire SQL when comments are inline
+    cleaned = cleaned.replace(/--[^-]*?(?=\s+(SELECT|FROM|WHERE|JOIN|UNION|INSERT|UPDATE|DELETE|WITH|ORDER|GROUP|HAVING|INNER|LEFT|RIGHT|CROSS|FULL|EXEC|CREATE|ALTER|DROP)\s)/gi, ' ');
+    // Also remove -- comments at the very end (after the last keyword)
+    cleaned = cleaned.replace(/--[^-]*$/g, ' ');
   }
 
   // Replace multiple whitespace with single space
@@ -251,7 +269,7 @@ function extractTablesWithParser(sql: string): TableReference[] {
         const ref: TableReference = {
           server: null,
           database: null,
-          schema: schemaOrNull === 'null' ? 'dbo' : schemaOrNull,
+          schema: schemaOrNull === 'null' ? '' : schemaOrNull,
           tableName: table,
           sourceType: 'LOCAL',
         };
@@ -339,7 +357,7 @@ function extractTablesWithRegex(sql: string): TableReference[] {
     const ref: TableReference = {
       server: null,
       database: null,
-      schema: 'dbo',
+      schema: '',  // Leave blank - schema not specified in SQL
       tableName: table,
       sourceType: 'LOCAL',
     };
