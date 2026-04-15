@@ -96,4 +96,14 @@ export async function metadataRoutes(app: FastifyInstance, services: Services, r
     const { templatePath } = request.params as { templatePath: string };
     return repos.linkedReport.findByTemplatePath(decodeURIComponent(templatePath));
   });
+
+  // GET /api/metadata/syspro-views-export - Export all SysproReporting views and their dependencies
+  app.get('/syspro-views-export', async (request, reply) => {
+    const csv = services.metadata.exportSysproViewDependencies();
+
+    reply.header('Content-Type', 'text/csv');
+    reply.header('Content-Disposition', 'attachment; filename="syspro_view_dependencies.csv"');
+
+    return csv;
+  });
 }

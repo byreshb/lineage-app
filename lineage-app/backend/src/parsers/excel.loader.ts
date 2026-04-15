@@ -16,6 +16,9 @@ export interface PbiExcelRow {
  * - Column B: PBI Table (table name within report)
  * - Column F: Source Database
  * - Column H: Unique view/table (source view or table name)
+ *   NOTE: Column H uses SPACE-separated format: "schema tablename"
+ *         This differs from SSRS RDL which uses DOT format: "schema.tablename"
+ *         The PbiLineageService normalizes space format to dot format for lookups.
  *
  * Data starts at row 6 (rows 1-5 are headers/metadata)
  */

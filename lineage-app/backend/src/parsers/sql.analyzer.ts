@@ -130,8 +130,9 @@ function cleanSql(sql: string): string {
 }
 
 function prepareSqlForParsing(sql: string): string {
-  // Remove CREATE PROC header if present
-  let cleaned = sql.replace(/CREATE\s+(PROCEDURE|PROC)\s+[^\s]+\s*/gi, '');
+  // Remove CREATE PROC/VIEW header if present
+  // Handles both bracketed ([schema].[name]) and unbracketed (schema.name) formats
+  let cleaned = sql.replace(/CREATE\s+(PROCEDURE|PROC|VIEW)\s+(?:(?:\[[^\]]+\]|\w+)\.)*(?:\[[^\]]+\]|\w+)\s*/gi, '');
 
   // Remove parameter declarations
   cleaned = cleaned.replace(/@\w+\s+[A-Za-z]+[^,@]*[,]?/gi, ' ');
@@ -289,7 +290,17 @@ function extractTablesWithParser(sql: string): TableReference[] {
 
 function extractTablesWithRegex(sql: string): TableReference[] {
   const tables: TableReference[] = [];
-  const cleanedSql = cleanSql(sql);
+
+  // Minimal cleaning: only remove multi-line comments
+  // Don't try to remove single-line comments as it's causing issues
+  let processedSql = sql;
+
+  // Remove multi-line comments
+  processedSql = processedSql.replace(/\/\*[\s\S]*?\*\//g, ' ');
+
+  // Normalize whitespace (but don't collapse newlines if they exist)
+  const cleanedSql = processedSql.replace(/[ \t]+/g, ' ').trim();
+
   const foundTables = new Set<string>();
 
   // Three-part names first (database.schema.table) - must check before two-part
@@ -409,6 +420,8 @@ export function extractTables(sql: string | null): TableReference[] {
     }
   }
 
+  // Always also run regex to catch references the parser missed
+  // (e.g., bracket syntax [schema].[table] that the parser doesn't handle)
   // Always also run regex to catch references the parser missed
   // (e.g., bracket syntax [schema].[table] that the parser doesn't handle)
   for (const ref of extractTablesWithRegex(sql)) {

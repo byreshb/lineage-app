@@ -441,6 +441,53 @@ function ReportManagement() {
     }
   }
 
+  const handleRunStarredPbi = async () => {
+    try {
+      setError(null)
+      const starredReports = pbiReports.filter(report => report.starred === true)
+
+      if (starredReports.length === 0) {
+        setError('No starred Power BI reports to process')
+        return
+      }
+
+      setProcessingStatus({
+        isRunning: true,
+        totalFiles: starredReports.length,
+        completedFiles: 0,
+        errorFiles: 0,
+        currentFile: 'Starting...',
+        completed: false,
+        progressPercent: 0,
+      })
+      setIsLocalProcessing(true)
+      setIsProcessing(true)
+
+      for (const report of starredReports) {
+        setProcessingStatus(prev => ({ ...prev, currentFile: report.reportName }))
+        try {
+          await api.buildPbiLineage(report.id)
+          setProcessingStatus(prev => ({
+            ...prev,
+            completedFiles: prev.completedFiles + 1,
+            progressPercent: ((prev.completedFiles + 1) / starredReports.length) * 100
+          }))
+        } catch (err) {
+          setProcessingStatus(prev => ({ ...prev, errorFiles: prev.errorFiles + 1 }))
+        }
+      }
+
+      setProcessingStatus(prev => ({ ...prev, completed: true, isRunning: false, currentFile: '' }))
+      setIsProcessing(false)
+      setIsLocalProcessing(false)
+      await loadPbiReports()
+    } catch (err) {
+      setError('Error during starred PBI analysis: ' + err.message)
+      setIsProcessing(false)
+      setIsLocalProcessing(false)
+    }
+  }
+
   const handleLoadRdlDatabase = async () => {
     try {
       setLoading(true)
@@ -547,6 +594,57 @@ function ReportManagement() {
       await loadFiles()
     } catch (err) {
       setError('Error during batch analysis: ' + err.message)
+      setIsProcessing(false)
+      setIsLocalProcessing(false)
+    }
+  }
+
+  const handleRunStarred = async () => {
+    try {
+      setError(null)
+      const starredFiles = files.filter(file => file.starred === true)
+
+      if (starredFiles.length === 0) {
+        setError('No starred reports to process')
+        return
+      }
+
+      setProcessingStatus({
+        isRunning: true,
+        totalFiles: starredFiles.length,
+        completedFiles: 0,
+        errorFiles: 0,
+        currentFile: 'Starting...',
+        completed: false,
+        progressPercent: 0,
+      })
+      setIsLocalProcessing(true)
+      setIsProcessing(true)
+
+      for (const file of starredFiles) {
+        setProcessingStatus(prev => ({ ...prev, currentFile: file.fileName }))
+        try {
+          if (rdlSource === 'DATABASE') {
+            await api.analyzeFromDatabase(file.filePath)
+          } else {
+            await api.analyzeFile(file.fileName)
+          }
+          setProcessingStatus(prev => ({
+            ...prev,
+            completedFiles: prev.completedFiles + 1,
+            progressPercent: ((prev.completedFiles + 1) / starredFiles.length) * 100
+          }))
+        } catch (err) {
+          setProcessingStatus(prev => ({ ...prev, errorFiles: prev.errorFiles + 1 }))
+        }
+      }
+
+      setProcessingStatus(prev => ({ ...prev, completed: true, isRunning: false, currentFile: '' }))
+      setIsProcessing(false)
+      setIsLocalProcessing(false)
+      await loadFiles()
+    } catch (err) {
+      setError('Error during starred analysis: ' + err.message)
       setIsProcessing(false)
       setIsLocalProcessing(false)
     }
@@ -856,6 +954,17 @@ function ReportManagement() {
               </button>
 
               {metadataStatus && metadataStatus.loaded && (
+                <a
+                  href="http://localhost:8080/api/metadata/syspro-views-export"
+                  download="syspro_view_dependencies.csv"
+                  className="btn btn-secondary"
+                  style={{ marginLeft: '10px' }}
+                >
+                  📥 Export SysproReporting Views
+                </a>
+              )}
+
+              {metadataStatus && metadataStatus.loaded && (
                 <div className="metadata-status">
                   <span className="status-badge success">Metadata loaded</span>
                   <button className="metadata-toggle" onClick={() => setMetadataExpanded(!metadataExpanded)}>
@@ -943,6 +1052,13 @@ function ReportManagement() {
                 )}
 
                 <button onClick={handleScan} disabled={loading} className="btn">Scan</button>
+                <button
+                  onClick={handleRunStarred}
+                  disabled={loading || isProcessing || starredCount === 0}
+                  className="btn btn-warning"
+                >
+                  Run Starred ({starredCount})
+                </button>
                 <button
                   onClick={handleRunAll}
                   disabled={loading || isProcessing || filteredFiles.length === 0}
@@ -1184,6 +1300,13 @@ function ReportManagement() {
               >
                 {pbiLoading ? 'Loading...' : 'Load Excel'}
               </button>
+              <button
+                onClick={handleRunStarredPbi}
+                disabled={pbiLoading || isProcessing || pbiStarredCount === 0}
+                className="btn btn-warning"
+              >
+                Run Starred ({pbiStarredCount})
+              </button>
               {pbiStatus.loaded && (
                 <span className="pbi-status">
                   {pbiStatus.reportCount} reports, {pbiStatus.tableCount} table mappings
@@ -1191,6 +1314,10 @@ function ReportManagement() {
               )}
             </div>
           </div>
+
+          {isProcessing && processingStatus && activeTab === 'PBI' && (
+            <ProcessingProgress status={processingStatus} />
+          )}
 
           {!pbiStatus.loaded && (
             <div className="pbi-empty-state">

@@ -1,115 +1,52 @@
--- All view definitions across databases
+-- All view definitions from ALL databases on SQL2 (D300SQLDW01)
 -- Export to: data/all_views.csv
 -- Columns: Database, SchemaName, ViewName, ViewDefinition
+-- Run on: D300SQLDW01
 
 -- =============================================================================
--- STATIC QUERY - Specific databases for lineage tracking
+-- DYNAMIC QUERY - Uses WHILE loop to build UNION ALL query
+-- Excludes: master, tempdb, msdb, model, ReportServer, ReportServerTempDB
 -- =============================================================================
 
-SELECT
-    'SysproReporting' COLLATE Latin1_General_CI_AS AS [Database],
-    s.name COLLATE Latin1_General_CI_AS AS SchemaName,
-    o.name COLLATE Latin1_General_CI_AS AS ViewName,
-    CAST(m.definition AS NVARCHAR(MAX)) COLLATE Latin1_General_CI_AS AS ViewDefinition
-FROM SysproReporting.sys.sql_modules m
-INNER JOIN SysproReporting.sys.objects o ON m.object_id = o.object_id
-INNER JOIN SysproReporting.sys.schemas s ON o.schema_id = s.schema_id
-WHERE o.type_desc = 'VIEW'
+SET NOCOUNT ON;
 
-UNION ALL
+DECLARE @sql NVARCHAR(MAX) = '';
+DECLARE @dbName NVARCHAR(128);
+DECLARE @first BIT = 1;
 
-SELECT
-    'DunnRite' COLLATE Latin1_General_CI_AS,
-    s.name COLLATE Latin1_General_CI_AS,
-    o.name COLLATE Latin1_General_CI_AS,
-    CAST(m.definition AS NVARCHAR(MAX)) COLLATE Latin1_General_CI_AS
-FROM DunnRite.sys.sql_modules m
-INNER JOIN DunnRite.sys.objects o ON m.object_id = o.object_id
-INNER JOIN DunnRite.sys.schemas s ON o.schema_id = s.schema_id
-WHERE o.type_desc = 'VIEW'
+DECLARE db_cursor CURSOR LOCAL FAST_FORWARD FOR
+    SELECT name FROM sys.databases
+    WHERE state_desc = 'ONLINE'
+      AND name NOT IN ('master', 'tempdb', 'msdb', 'model', 'ReportServer', 'ReportServerTempDB')
+      AND is_read_only = 0
+      AND HAS_DBACCESS(name) = 1  -- Only databases user can access
+    ORDER BY name;
 
-UNION ALL
+OPEN db_cursor;
+FETCH NEXT FROM db_cursor INTO @dbName;
 
-SELECT
-    'Q' COLLATE Latin1_General_CI_AS,
-    s.name COLLATE Latin1_General_CI_AS,
-    o.name COLLATE Latin1_General_CI_AS,
-    CAST(m.definition AS NVARCHAR(MAX)) COLLATE Latin1_General_CI_AS
-FROM Q.sys.sql_modules m
-INNER JOIN Q.sys.objects o ON m.object_id = o.object_id
-INNER JOIN Q.sys.schemas s ON o.schema_id = s.schema_id
-WHERE o.type_desc = 'VIEW'
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    IF @first = 0
+        SET @sql = @sql + ' UNION ALL ';
+    SET @first = 0;
 
-UNION ALL
+    SET @sql = @sql +
+        'SELECT ''' + @dbName + ''' AS [Database], ' +
+        's.name COLLATE Latin1_General_CI_AS AS SchemaName, ' +
+        'o.name COLLATE Latin1_General_CI_AS AS ViewName, ' +
+        'CAST(m.definition AS NVARCHAR(MAX)) COLLATE Latin1_General_CI_AS AS ViewDefinition ' +
+        'FROM [' + @dbName + '].sys.sql_modules m ' +
+        'INNER JOIN [' + @dbName + '].sys.objects o ON m.object_id = o.object_id ' +
+        'INNER JOIN [' + @dbName + '].sys.schemas s ON o.schema_id = s.schema_id ' +
+        'WHERE o.type_desc = ''VIEW''';
 
-SELECT
-    'SRUtil' COLLATE Latin1_General_CI_AS,
-    s.name COLLATE Latin1_General_CI_AS,
-    o.name COLLATE Latin1_General_CI_AS,
-    CAST(m.definition AS NVARCHAR(MAX)) COLLATE Latin1_General_CI_AS
-FROM SRUtil.sys.sql_modules m
-INNER JOIN SRUtil.sys.objects o ON m.object_id = o.object_id
-INNER JOIN SRUtil.sys.schemas s ON o.schema_id = s.schema_id
-WHERE o.type_desc = 'VIEW'
+    FETCH NEXT FROM db_cursor INTO @dbName;
+END
 
-UNION ALL
+CLOSE db_cursor;
+DEALLOCATE db_cursor;
 
-SELECT
-    'Sunwest' COLLATE Latin1_General_CI_AS,
-    s.name COLLATE Latin1_General_CI_AS,
-    o.name COLLATE Latin1_General_CI_AS,
-    CAST(m.definition AS NVARCHAR(MAX)) COLLATE Latin1_General_CI_AS
-FROM Sunwest.sys.sql_modules m
-INNER JOIN Sunwest.sys.objects o ON m.object_id = o.object_id
-INNER JOIN Sunwest.sys.schemas s ON o.schema_id = s.schema_id
-WHERE o.type_desc = 'VIEW'
+SET @sql = @sql + ' ORDER BY [Database], SchemaName, ViewName';
 
-UNION ALL
-
-SELECT
-    'Calgary' COLLATE Latin1_General_CI_AS,
-    s.name COLLATE Latin1_General_CI_AS,
-    o.name COLLATE Latin1_General_CI_AS,
-    CAST(m.definition AS NVARCHAR(MAX)) COLLATE Latin1_General_CI_AS
-FROM Calgary.sys.sql_modules m
-INNER JOIN Calgary.sys.objects o ON m.object_id = o.object_id
-INNER JOIN Calgary.sys.schemas s ON o.schema_id = s.schema_id
-WHERE o.type_desc = 'VIEW'
-
-UNION ALL
-
-SELECT
-    'Lethbridge' COLLATE Latin1_General_CI_AS,
-    s.name COLLATE Latin1_General_CI_AS,
-    o.name COLLATE Latin1_General_CI_AS,
-    CAST(m.definition AS NVARCHAR(MAX)) COLLATE Latin1_General_CI_AS
-FROM Lethbridge.sys.sql_modules m
-INNER JOIN Lethbridge.sys.objects o ON m.object_id = o.object_id
-INNER JOIN Lethbridge.sys.schemas s ON o.schema_id = s.schema_id
-WHERE o.type_desc = 'VIEW'
-
-UNION ALL
-
-SELECT
-    'Surrey' COLLATE Latin1_General_CI_AS,
-    s.name COLLATE Latin1_General_CI_AS,
-    o.name COLLATE Latin1_General_CI_AS,
-    CAST(m.definition AS NVARCHAR(MAX)) COLLATE Latin1_General_CI_AS
-FROM Surrey.sys.sql_modules m
-INNER JOIN Surrey.sys.objects o ON m.object_id = o.object_id
-INNER JOIN Surrey.sys.schemas s ON o.schema_id = s.schema_id
-WHERE o.type_desc = 'VIEW'
-
-UNION ALL
-
-SELECT
-    'JnL' COLLATE Latin1_General_CI_AS,
-    s.name COLLATE Latin1_General_CI_AS,
-    o.name COLLATE Latin1_General_CI_AS,
-    CAST(m.definition AS NVARCHAR(MAX)) COLLATE Latin1_General_CI_AS
-FROM JnL.sys.sql_modules m
-INNER JOIN JnL.sys.objects o ON m.object_id = o.object_id
-INNER JOIN JnL.sys.schemas s ON o.schema_id = s.schema_id
-WHERE o.type_desc = 'VIEW'
-
-ORDER BY [Database], SchemaName, ViewName;
+EXEC sp_executesql @sql;

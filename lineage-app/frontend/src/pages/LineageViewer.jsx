@@ -149,14 +149,14 @@ function LineageViewer() {
           <div className="tables-section">
             <h3>Source Tables</h3>
             <div className="status-legend">
-              <span className="legend-title">In SysproReporting:</span>
+              <span className="legend-title">In SQL2(D300SQLDW01):</span>
               <span className="legend-item">
                 <span className="status-badge status-ok">Yes</span>
-                Table exists in SysproReporting
+                Table exists in SQL2(D300SQLDW01)
               </span>
               <span className="legend-item">
                 <span className="status-badge status-not-found">No</span>
-                Table not found in SysproReporting
+                Table not found in SQL2(D300SQLDW01)
               </span>
             </div>
             <TableList tables={tables} />

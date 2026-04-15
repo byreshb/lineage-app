@@ -47,13 +47,13 @@ lineage-app/
 ### Data Flow
 
 1. **Load Metadata** - CSV files with SQL Server metadata are loaded into SQLite
-   - `sysproreporting_stored_procs.csv` - Stored procedure definitions (all schemas)
-   - `all_views.csv` - View definitions
-   - `tables_with_pks.csv` - Tables with server, database, schema, PK info
+   - `all_stored_procs.csv` - Stored procedure definitions from ALL databases on SQL2(D300SQLDW01)
+   - `all_views.csv` - View definitions from ALL databases on SQL2(D300SQLDW01)
+   - `tables_with_pks.csv` - Tables with server, database, schema, PK info from ALL databases
    - `shared_datasets.csv` - SSRS shared datasets (SQL queries)
    - `shared_datasources.csv` - SSRS shared data sources (connection strings with actual server/database)
    - `linked_servers.csv` - SQL Server linked servers
-   - `dependencies.csv` - SQL Server dependency metadata
+   - `all_dependencies.csv` - SQL Server dependency metadata from ALL databases
    - `rdl_reports.csv` - (Optional) RDL content exported from ReportServer
    - `report_execution_history.csv` - (Optional) Execution stats from SSRS ExecutionLog
    - `report_executions.csv` - (Optional) Recent executions with parameters from ExecutionLog3
@@ -186,7 +186,7 @@ npm run build
 - `lineage` - SSRS relationships between entities (lineage edges)
 - `stored_procedures` - Proc definitions
 - `views` - View definitions
-- `source_tables` - SysproReporting table metadata with server, database, PK info
+- `source_tables` - SQL2(D300SQLDW01) table metadata with server, database, PK info
 - `data_sources` - Report data sources (from RDL XML)
 - `shared_datasets` - SSRS shared datasets (SQL queries)
 - `shared_data_sources` - SSRS shared data sources (actual connection strings)
@@ -239,17 +239,19 @@ npm run build    # Compile TypeScript
 - Vite hot-reloads automatically, no rebuild needed
 
 ### SQL Queries
-All SQL queries used to generate CSV files are in the `SQL/` folder:
-- `sysproreporting_stored_procs.sql` - Stored procedures
-- `all_views.sql` - Views
-- `tables_with_pks.sql` - Tables (with server, database, schema)
+All SQL queries used to generate CSV files are in the `SQL/` folder. **Run these on D300SQLDW01 (SQL2):**
+- `all_stored_procs.sql` - Stored procedures from ALL databases (dynamic query)
+- `all_views.sql` - Views from ALL databases (dynamic query)
+- `tables_with_pks.sql` - Tables from ALL databases (dynamic query)
+- `all_dependencies.sql` - SQL Server dependencies from ALL databases (dynamic query)
 - `shared_datasets.sql` - Shared datasets (SQL queries)
 - `shared_datasources.sql` - Shared data sources (connection strings with actual server/database)
 - `linked_servers.sql` - Linked servers
-- `dependencies.sql` - SQL Server dependencies
-- `rdl_reports_sqlcmd.sql` - Export RDL content from ReportServer (use SQLCMD to avoid truncation)
+- `rdl_reports_bcp.txt` - BCP command to export RDL content from ReportServer
 - `report_execution_history.sql` - Report execution stats from SSRS ExecutionLog
 - `report_executions.sql` - Recent executions with parameters (last 30 days)
+
+**Note:** The dynamic queries automatically query ALL user databases on the server, excluding system databases (master, tempdb, msdb, model, ReportServer, ReportServerTempDB).
 
 ### RDL Source Options
 The app supports two RDL sources (toggle in UI):
@@ -324,19 +326,16 @@ All exports use the same CSV structure:
 | Comment | Overflow if more than 10 procs or views (lists additional ones) |
 | Metadata Table | Base table name from database metadata |
 | Metadata Schema | Schema name (dbo, stage, bi, etc.) |
-| Source Server | Server from RDL connection string or Excel mapping |
-| Source Database | Database from RDL connection string or Excel mapping |
-| In SysproReporting | Yes, No, NO TABLES, VIEW_NO_TABLES, NO SOURCE |
-| SysproReporting Has PK | Yes, No, or - (unknown) |
+| Linked Server | Linked server name if external reference |
+| External Database | Database name for external/missing tables |
+| In SQL2(D300SQLDW01) | Yes, No, NO TABLES, VIEW_NO_TABLES, NO SOURCE |
+| SQL2(D300SQLDW01) Has PK | Yes, No, or - (unknown) |
 
-**Source Server/Database:**
-Where the report says it's connecting to (from RDL XML connection string or Excel mapping)
-
-**In SysproReporting Values:**
-- `Yes` - Table found in SysproReporting database metadata
-- `No` - Table referenced but not found in SysproReporting (may be in another database)
+**In SQL2(D300SQLDW01) Values:**
+- `Yes` - Table found in SQL2(D300SQLDW01) database metadata (from tables_with_pks.csv)
+- `No` - Table referenced but not found in any database on SQL2(D300SQLDW01)
 - `NO TABLES` - Dataset has no table references (parameter parsing only)
 - `VIEW_NO_TABLES` - View exists but has no traceable base tables
 - `NO SOURCE` - Power BI table has no source entity specified
 
-**Note:** Only SysproReporting tables are loaded from tables_with_pks.csv. Tables from other databases (Calgary, DunnRite, etc.) will show "In SysproReporting: No".
+**Note:** Tables from ALL databases on SQL2(D300SQLDW01) are now loaded. Tables not found may be on external linked servers or missing from the server entirely.

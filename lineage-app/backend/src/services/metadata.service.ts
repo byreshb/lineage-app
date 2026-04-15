@@ -15,6 +15,7 @@ import {
   loadReportExecutions,
   loadLinkedReports,
 } from '../parsers/csv.loader.js';
+import { extractTables } from '../parsers/sql.analyzer.js';
 import dayjs from 'dayjs';
 
 export class MetadataService {
@@ -212,5 +213,89 @@ export class MetadataService {
     } catch {
       return timeStr;
     }
+  }
+
+  /**
+   * Export all views from SysproReporting database showing their direct dependencies
+   * Format: Source View, Target Entity, Entity Type
+   */
+  exportSysproViewDependencies(): string {
+    // Get all views from SysproReporting database
+    const allViews = this.repos.view.findAll();
+    const sysproViews = allViews.filter(v => v.databaseName === 'SysproReporting');
+
+    console.log(`Found ${sysproViews.length} views in SysproReporting database`);
+
+    // CSV header
+    let csv = 'Source View,Target Entity,SysproReporting-Entity-Type\n';
+
+    for (const view of sysproViews) {
+      const sourceView = `${view.schemaName}.${view.viewName}`;
+
+      if (!view.definition) {
+        // No definition available
+        csv += `${this.escapeCsv(sourceView)},NO DEFINITION,UNKNOWN\n`;
+        continue;
+      }
+
+      // Extract table references from view definition
+      const tableRefs = extractTables(view.definition);
+
+      if (tableRefs.length === 0) {
+        // No tables found in view
+        csv += `${this.escapeCsv(sourceView)},NO TABLES FOUND,UNKNOWN\n`;
+        continue;
+      }
+
+      // For each table reference, output a row
+      for (const ref of tableRefs) {
+        // Build the full reference name
+        let targetEntity = '';
+
+        if (ref.sourceType === 'LINKED_SERVER' && ref.server && ref.database) {
+          // 4-part name: server.database.schema.table - keep as-is
+          targetEntity = `${ref.server}.${ref.database}.${ref.schema}.${ref.tableName}`;
+        } else if (ref.database && ref.schema) {
+          // 3-part name: database.schema.table
+          targetEntity = `${ref.database}.${ref.schema}.${ref.tableName}`;
+        } else if (ref.schema) {
+          // 2-part name: schema.table
+          targetEntity = `${ref.schema}.${ref.tableName}`;
+        } else {
+          // 1-part name: just table
+          targetEntity = ref.tableName;
+        }
+
+        // Determine if it's a view or table IN SysproReporting database
+        let entityType = 'NOT_FOUND';
+
+        // Check if this reference is another view
+        const lookupName = ref.schema ? `${ref.schema}.${ref.tableName}` : ref.tableName;
+        const referencedView = this.repos.view.findByName(lookupName);
+
+        if (referencedView && referencedView.databaseName === 'SysproReporting') {
+          entityType = 'VIEW';
+        } else {
+          // Check if it's a table
+          const referencedTable = this.repos.table.findByName(lookupName);
+          if (referencedTable && referencedTable.databaseName === 'SysproReporting') {
+            entityType = 'TABLE';
+          }
+          // Otherwise remains NOT_FOUND (external database or not in metadata)
+        }
+
+        csv += `${this.escapeCsv(sourceView)},${this.escapeCsv(targetEntity)},${entityType}\n`;
+      }
+    }
+
+    return csv;
+  }
+
+  private escapeCsv(value: string | null): string {
+    if (!value) return '';
+    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+      return `"${value.replace(/"/g, '""')}"`;
+    }
+    return value;
   }
 }

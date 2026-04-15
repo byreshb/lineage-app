@@ -61,6 +61,14 @@ export class TableRepository {
     return rows.map((row) => this.mapRow(row)!);
   }
 
+  // Find all schemas where a table exists (for tables referenced without schema)
+  findAllSchemasForTable(tableName: string): string[] {
+    const rows = this.db.prepare(
+      'SELECT DISTINCT schema_name FROM source_tables WHERE table_name = ? ORDER BY schema_name'
+    ).all(tableName) as { schema_name: string }[];
+    return rows.map(r => r.schema_name);
+  }
+
   findByServer(server: string): SourceTable[] {
     const rows = this.db.prepare('SELECT * FROM source_tables WHERE server = ?').all(server);
     return rows.map((row) => this.mapRow(row)!);

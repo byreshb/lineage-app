@@ -65,9 +65,19 @@ export function loadViews(csvFilePath: string): View[] {
 
   if (records.length > 0) {
     const col0 = cleanString(records[0][0]).toLowerCase();
-    // Check if first column is a database name or header
-    if (col0 === 'database' || col0 === 'databasename' ||
-        ['sysproreporting', 'dunnrite', 'q', 'srutil', 'sunwest', 'calgary', 'lethbridge', 'surrey', 'jnl'].includes(col0)) {
+    const col1 = records[0].length > 1 ? cleanString(records[0][1]).toLowerCase() : '';
+
+    // Check if first column is a header
+    if (col0 === 'database' || col0 === 'databasename') {
+      format = 'A';
+    }
+    // Check if second column looks like a schema name (dbo, syspro, etc.) - indicates Format A
+    else if (['dbo', 'syspro', 'stage', 'bi', 'etl', 'raw', 'dim', 'fact'].includes(col1)) {
+      format = 'A';
+    }
+    // Check if first column is NOT a typical schema name - likely a database name (Format A)
+    else if (!['dbo', 'syspro', 'stage', 'bi', 'etl', 'raw', 'dim', 'fact', 'schema', 'schemaname', 'schema_name'].includes(col0)) {
+      // First column doesn't look like a schema, assume it's a database name
       format = 'A';
     }
   }

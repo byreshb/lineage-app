@@ -38,14 +38,30 @@ export interface LineageExportRow {
   // Linked Server info (for external tables)
   linkedServer: string;
   linkedServerDatabase: string;
-  // In SysproReporting (Yes/No) - indicates if table was found in database metadata
+  // In SQL2(D300SQLDW01) (Yes/No) - indicates if table was found in database metadata
   status: string;
-  // SysproReporting Has PK (Yes/No/-)
+  // SQL2(D300SQLDW01) Has PK (Yes/No/-)
   hasPk: string;
 }
 
 export class CsvExportService {
   constructor(private repos: Repositories) {}
+
+  /**
+   * Find all schemas where a table exists and format as comment
+   * Returns comment showing all schemas if table exists in multiple schemas
+   */
+  private getSchemasComment(tableName: string): string {
+    // Find all schemas where this table exists
+    const schemas = this.repos.table.findAllSchemasForTable(tableName);
+
+    if (schemas.length <= 1) {
+      return ''; // Not in multiple schemas, no comment needed
+    } else {
+      // Found in multiple schemas - add comment
+      return `Found in schemas: [${schemas.join(', ')}]`;
+    }
+  }
 
   /**
    * Export SSRS reports only
@@ -91,8 +107,8 @@ export class CsvExportService {
       'Schema',
       'Linked Server',
       'External Database',
-      'In SysproReporting',
-      'SysproReporting Has PK'
+      'In SQL2(D300SQLDW01)',
+      'SQL2(D300SQLDW01) Has PK'
     ].join(',') + '\n';
 
     let csv = header;
@@ -150,7 +166,7 @@ export class CsvExportService {
           const table = this.repos.table.findById(edge.targetId);
           if (table) {
             foundTable = table.tableName;
-            foundSchema = table.schemaName || '';
+            // Don't fill in schema - leave blank, comment will show available schemas
             hasPk = table.hasPk === true ? 'Yes' : table.hasPk === false ? 'No' : '-';
           }
         } else {
@@ -160,13 +176,22 @@ export class CsvExportService {
           // Or: Schema.Table (local not found)
           const parsed = this.parseExternalTablePath(foundTable);
           foundTable = parsed.tableName;
-          foundSchema = parsed.schema;
+          // Only set schema if it was explicitly in the path (linked server or cross-db)
+          if (parsed.linkedServer || parsed.database) {
+            foundSchema = parsed.schema;
+          }
           linkedServer = parsed.linkedServer;
           linkedServerDatabase = parsed.database;
         }
 
         // Find the dataset for this edge
         const chain = this.buildEntityChain(edges, datasetMap, edge);
+
+        // Add comment showing all schemas where table exists (if schema not specified)
+        const schemasComment = this.getSchemasComment(foundTable);
+        const finalComment = schemasComment
+          ? (chain.comment ? `${chain.comment}; ${schemasComment}` : schemasComment)
+          : chain.comment;
 
         rows += this.formatRow({
           reportType: 'SSRS',
@@ -176,7 +201,7 @@ export class CsvExportService {
           datasetType: chain.datasetType,
           procs: chain.procs,
           views: chain.views,
-          comment: chain.comment,
+          comment: finalComment,
           metadataTable: foundTable,
           metadataSchema: foundSchema,
           linkedServer,
@@ -205,9 +230,14 @@ export class CsvExportService {
 
           const { procs, views, comment } = this.splitPathsWithOverflow(allProcs, allViews);
           // Add comment for external tables not found in metadata
-          const finalComment = bt.isExternal
-            ? (comment ? `${comment}; Table in view SQL not found (in tables_with_pks.csv)` : 'Table in view SQL not found (in tables_with_pks.csv)')
+          let finalComment = bt.isExternal
+            ? (comment ? `${comment}; Base table not in SQL2(D300SQLDW01) metadata` : 'Base table not in SQL2(D300SQLDW01) metadata')
             : comment;
+          // Add schemas comment if schema not specified
+          const schemasComment = this.getSchemasComment(bt.tableName);
+          if (schemasComment) {
+            finalComment = finalComment ? `${finalComment}; ${schemasComment}` : schemasComment;
+          }
 
           rows += this.formatRow({
             reportType: 'SSRS',
@@ -247,9 +277,14 @@ export class CsvExportService {
 
           const { procs, views, comment } = this.splitPathsWithOverflow(allProcs, allViews);
           // Add comment for external tables not found in metadata
-          const finalComment = bt.isExternal
-            ? (comment ? `${comment}; Table in view SQL not found (in tables_with_pks.csv)` : 'Table in view SQL not found (in tables_with_pks.csv)')
+          let finalComment = bt.isExternal
+            ? (comment ? `${comment}; Base table not in SQL2(D300SQLDW01) metadata` : 'Base table not in SQL2(D300SQLDW01) metadata')
             : comment;
+          // Add schemas comment if schema not specified
+          const schemasComment = this.getSchemasComment(bt.tableName);
+          if (schemasComment) {
+            finalComment = finalComment ? `${finalComment}; ${schemasComment}` : schemasComment;
+          }
 
           rows += this.formatRow({
             reportType: 'SSRS',
@@ -424,7 +459,7 @@ export class CsvExportService {
             const { procs, views, comment } = this.splitPathsWithOverflow(bt.procPath, allViews);
             // Add comment for external tables not found in metadata
             const finalComment = bt.isExternal
-              ? (comment ? `${comment}; Table in view SQL not found (in tables_with_pks.csv)` : 'Table in view SQL not found (in tables_with_pks.csv)')
+              ? (comment ? `${comment}; Base table not in SQL2(D300SQLDW01) metadata` : 'Base table not in SQL2(D300SQLDW01) metadata')
               : comment;
 
             rows += this.formatRow({
@@ -462,7 +497,7 @@ export class CsvExportService {
             datasetType: 'PowerBI',
             procs: [],
             views: [],
-            comment: `Excel source not found (in all_views.csv): ${excelRef}`,
+            comment: `View not in SQL2(D300SQLDW01) metadata: ${excelRef}`,
             metadataTable: notFoundTable,
             metadataSchema: notFoundSchema,
             linkedServer: '',
@@ -625,7 +660,7 @@ export class CsvExportService {
       if (table) {
         results.push({
           database: table.databaseName || refDatabase,
-          schema: table.schemaName || refSchema,
+          schema: refSchema,  // Keep original schema from SQL (blank if not specified)
           tableName: table.tableName,
           viewPath: currentViewPath,
           procPath: currentProcPath,
@@ -701,7 +736,7 @@ export class CsvExportService {
       if (table) {
         results.push({
           database: table.databaseName || refDatabase,
-          schema: table.schemaName || refSchema,
+          schema: refSchema,  // Keep original schema from SQL (blank if not specified)
           tableName: table.tableName,
           viewPath: [],
           procPath: procPath,

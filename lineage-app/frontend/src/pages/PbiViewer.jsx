@@ -121,14 +121,14 @@ function PbiViewer() {
           <div className="tables-section">
             <h3>Source Entities</h3>
             <div className="status-legend">
-              <span className="legend-title">In SysproReporting:</span>
+              <span className="legend-title">In SQL2(D300SQLDW01):</span>
               <span className="legend-item">
                 <span className="status-badge status-ok">Yes</span>
-                Table exists in SysproReporting
+                Table exists in SQL2(D300SQLDW01)
               </span>
               <span className="legend-item">
                 <span className="status-badge status-not-found">No</span>
-                Table not found in SysproReporting
+                Table not found in SQL2(D300SQLDW01)
               </span>
             </div>
             <table className="pbi-tables-table">
@@ -138,7 +138,7 @@ function PbiViewer() {
                   <th colSpan="2" className="header-group excel-header">From Excel</th>
                   <th colSpan="3" className="header-group db-header">Found in Database</th>
                   <th>Type</th>
-                  <th>In SysproReporting</th>
+                  <th>In SQL2(D300SQLDW01)</th>
                   <th>External Sources</th>
                 </tr>
                 <tr className="subheader-row">

@@ -14,8 +14,8 @@ function TableList({ tables }) {
       <table>
         <thead>
           <tr>
-            <th>In SysproReporting</th>
-            <th>SysproReporting Has PK</th>
+            <th>In SQL2(D300SQLDW01)</th>
+            <th>SQL2(D300SQLDW01) Has PK</th>
             <th>Metadata Table</th>
             <th>Metadata Schema</th>
             <th>Metadata Database</th>

@@ -452,7 +452,7 @@ ${this.getCss()}
             <div class="legend-item"><span class="legend-line regex"></span> Regex only</div>
             <div class="legend-item"><span class="legend-line dynamic"></span> Dynamic SQL</div>
           </div>
-          <h4>In SysproReporting</h4>
+          <h4>In SQL2(D300SQLDW01)</h4>
           <div class="legend-items">
             <div class="legend-item"><span class="table-status ok">Yes</span> Table in metadata</div>
             <div class="legend-item"><span class="table-status not-found">No</span> External/missing</div>

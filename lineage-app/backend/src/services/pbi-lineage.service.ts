@@ -45,6 +45,37 @@ export class PbiLineageService {
   constructor(private repos: Repositories) {}
 
   /**
+   * Normalize Power BI entity names to schema.table format.
+   *
+   * Power BI Excel data uses SPACE-separated format: "bi vWipMaster"
+   * SSRS RDL data uses DOT-separated format: "dbo.vBlahBlah"
+   *
+   * This converts PBI space format to standard dot notation for database lookups.
+   *
+   * @param entityName - Entity name from Excel (may use space or dot separator)
+   * @returns Normalized name using dot separator
+   */
+  private normalizePbiEntityName(entityName: string): string {
+    if (!entityName) return entityName;
+
+    const trimmed = entityName.trim();
+
+    // If already has a dot, assume it's already normalized (backward compatibility)
+    if (trimmed.includes('.')) return trimmed;
+
+    // Check for single space separating two parts (schema table)
+    const parts = trimmed.split(/\s+/);
+
+    // If exactly 2 parts, convert "schema table" to "schema.table"
+    if (parts.length === 2) {
+      return `${parts[0]}.${parts[1]}`;
+    }
+
+    // No spaces or multiple spaces - return as-is
+    return trimmed;
+  }
+
+  /**
    * Load Power BI data from Excel file and populate database
    */
   loadFromExcel(filePath?: string): { reportCount: number; tableCount: number } {
@@ -192,7 +223,8 @@ export class PbiLineageService {
     }
 
     // Check if it's a view in our metadata
-    const view = this.repos.view.findByName(entityName);
+    const normalizedName = this.normalizePbiEntityName(entityName);
+    const view = this.repos.view.findByName(normalizedName);
 
     if (view) {
       // It's a view - add VIEW node
@@ -238,12 +270,18 @@ export class PbiLineageService {
           if (ref.tableName.toLowerCase() === view.viewName.toLowerCase()) continue;
           if (ref.tableName.toLowerCase() === fullName) continue;
 
+          // Build full entity name (schema.table if schema exists)
+          let nestedEntityName = ref.tableName;
+          if (ref.schema) {
+            nestedEntityName = `${ref.schema}.${ref.tableName}`;
+          }
+
           // Recursively process nested views/tables
           this.processSourceEntity(
             reportId,
             viewNodeId,
             view.viewName,
-            ref.tableName,
+            nestedEntityName,
             database,
             nodesMap,
             edges,
@@ -289,11 +327,17 @@ export class PbiLineageService {
             if (proc.definition) {
               const procTableRefs = extractTables(proc.definition);
               for (const ref of procTableRefs) {
+                // Build full entity name (schema.table if schema exists)
+                let nestedEntityName = ref.tableName;
+                if (ref.schema) {
+                  nestedEntityName = `${ref.schema}.${ref.tableName}`;
+                }
+
                 this.processSourceEntity(
                   reportId,
                   procNodeId,
                   proc.procName,
-                  ref.tableName,
+                  nestedEntityName,
                   database,
                   nodesMap,
                   edges,
@@ -306,7 +350,7 @@ export class PbiLineageService {
       }
     } else {
       // Check if it's a table
-      const table = this.repos.table.findByName(entityName);
+      const table = this.repos.table.findByName(normalizedName);
 
       if (table) {
         const tableNodeId = `TABLE_${table.id}`;
@@ -383,11 +427,12 @@ export class PbiLineageService {
       const entityName = pbiTable.sourceViewOrTable;
       if (!entityName) continue;
 
-      const nestedViews = this.detectNestedViews(entityName, new Set());
+      const normalizedName = this.normalizePbiEntityName(entityName);
+      const nestedViews = this.detectNestedViews(normalizedName, new Set());
 
       // Check what type of entity this is
-      const view = this.repos.view.findByName(entityName);
-      const table = this.repos.table.findByName(entityName);
+      const view = this.repos.view.findByName(normalizedName);
+      const table = this.repos.table.findByName(normalizedName);
 
       if (view) {
         // Check for external sources in the view chain
@@ -431,9 +476,10 @@ export class PbiLineageService {
         });
       } else {
         // Parse schema.table from entity name for NOT_FOUND entries
-        const parts = entityName.split('.');
+        const normalizedName = this.normalizePbiEntityName(entityName);
+        const parts = normalizedName.split('.');
         let notFoundSchema = '';
-        let notFoundTable = entityName;
+        let notFoundTable = normalizedName;
         if (parts.length >= 2) {
           notFoundSchema = parts[parts.length - 2];
           notFoundTable = parts[parts.length - 1];
@@ -447,7 +493,7 @@ export class PbiLineageService {
           resolvedName: notFoundTable,
           resolvedSchema: notFoundSchema,
           resolvedDatabase: pbiTable.sourceDatabase,
-          resolvedFullName: entityName,
+          resolvedFullName: normalizedName,
           entityType: 'NOT_FOUND',
           status: 'NOT_FOUND',
         });
@@ -466,7 +512,8 @@ export class PbiLineageService {
 
     if (visited.size > 20) return [];
 
-    const view = this.repos.view.findByName(viewName);
+    const normalizedName = this.normalizePbiEntityName(viewName);
+    const view = this.repos.view.findByName(normalizedName);
     if (!view || !view.definition) return [];
 
     // Also add the found view's full name and short name to visited to prevent duplicates
@@ -506,7 +553,8 @@ export class PbiLineageService {
 
     if (visited.size > 20) return [];
 
-    const view = this.repos.view.findByName(viewName);
+    const normalizedName = this.normalizePbiEntityName(viewName);
+    const view = this.repos.view.findByName(normalizedName);
     if (!view || !view.definition) return [];
 
     const externalSources: string[] = [];
@@ -554,7 +602,8 @@ export class PbiLineageService {
 
     if (visited.size > 20) return false;
 
-    const view = this.repos.view.findByName(viewName);
+    const normalizedName = this.normalizePbiEntityName(viewName);
+    const view = this.repos.view.findByName(normalizedName);
     if (!view || !view.definition) return false;
 
     const tableRefs = extractTables(view.definition);
@@ -685,8 +734,8 @@ export class PbiLineageService {
       'Schema',
       'Server',
       'Database',
-      'In SysproReporting',
-      'SysproReporting Has PK'
+      'In SQL2(D300SQLDW01)',
+      'SQL2(D300SQLDW01) Has PK'
     ].join(',') + '\n';
 
     let csv = header;
@@ -738,8 +787,10 @@ export class PbiLineageService {
           continue;
         }
 
+        const normalizedName = this.normalizePbiEntityName(entityName);
+
         // Check if it's directly a table
-        const directTable = this.repos.table.findByName(entityName);
+        const directTable = this.repos.table.findByName(normalizedName);
         if (directTable) {
           csv += this.formatPbiCsvRow({
             reportType: 'PowerBI',
@@ -761,10 +812,10 @@ export class PbiLineageService {
         }
 
         // Check if it's a view - trace to base tables
-        const view = this.repos.view.findByName(entityName);
+        const view = this.repos.view.findByName(normalizedName);
         if (view) {
           // Find all base tables through nested views
-          const baseTables = this.findAllBaseTablesForPbi(entityName, [], [], new Set());
+          const baseTables = this.findAllBaseTablesForPbi(normalizedName, [], [], new Set());
 
           if (baseTables.length === 0) {
             // View exists but has no traceable tables
@@ -775,7 +826,7 @@ export class PbiLineageService {
               datasetName: pbiTable.tableName,
               datasetType: 'PowerBI',
               procs: [],
-              views: [entityName],
+              views: [normalizedName],
               comment: '',
               metadataTable: 'No base tables found in view',
               metadataSchema: view.schemaName || '',
@@ -789,7 +840,7 @@ export class PbiLineageService {
 
           // Output one row per base table found
           for (const bt of baseTables) {
-            const allViews = [entityName, ...bt.viewPath];
+            const allViews = [normalizedName, ...bt.viewPath];
             const { procs, views, comment } = this.splitPathsWithOverflow(bt.procPath, allViews);
             // Add comment for external tables not found in metadata
             const finalComment = bt.isExternal
@@ -815,9 +866,9 @@ export class PbiLineageService {
           }
         } else {
           // Not found as table or view
-          const parts = entityName.split('.');
+          const parts = normalizedName.split('.');
           let notFoundSchema = '';
-          let notFoundTable = entityName;
+          let notFoundTable = normalizedName;
           if (parts.length >= 2) {
             notFoundSchema = parts[parts.length - 2];
             notFoundTable = parts[parts.length - 1];
@@ -860,7 +911,8 @@ export class PbiLineageService {
     visited.add(lowerName);
     if (visited.size > 50) return [];
 
-    const view = this.repos.view.findByName(viewName);
+    const normalizedName = this.normalizePbiEntityName(viewName);
+    const view = this.repos.view.findByName(normalizedName);
     if (!view || !view.definition) return [];
 
     const fullName = `${view.schemaName}.${view.viewName}`;

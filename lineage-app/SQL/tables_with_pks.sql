@@ -1,92 +1,52 @@
--- All user tables with primary key status
+-- All user tables with primary key status from ALL databases on SQL2 (D300SQLDW01)
 -- Export to: data/tables_with_pks.csv
 -- Columns: Server, Database, Schema, Table, HasPK
+-- Run on: D300SQLDW01
 
 -- =============================================================================
--- STATIC QUERY (Recommended) - Specific databases for lineage tracking
+-- DYNAMIC QUERY - Uses WHILE loop to build UNION ALL query
+-- Excludes: master, tempdb, msdb, model, ReportServer, ReportServerTempDB
 -- =============================================================================
 
-SELECT
-    @@SERVERNAME AS [Server],
-    'SysproReporting' COLLATE Latin1_General_CI_AS AS [Database],
-    s.name COLLATE Latin1_General_CI_AS AS [Schema],
-    t.name COLLATE Latin1_General_CI_AS AS [Table],
-    CASE WHEN pk.parent_object_id IS NOT NULL THEN 1 ELSE 0 END AS HasPK
-FROM SysproReporting.sys.tables t
-JOIN SysproReporting.sys.schemas s ON t.schema_id = s.schema_id
-LEFT JOIN SysproReporting.sys.key_constraints pk ON t.object_id = pk.parent_object_id AND pk.type = 'PK'
-WHERE t.is_ms_shipped = 0
+SET NOCOUNT ON;
 
-UNION ALL
+DECLARE @sql NVARCHAR(MAX) = '';
+DECLARE @dbName NVARCHAR(128);
+DECLARE @first BIT = 1;
 
-SELECT @@SERVERNAME, 'DunnRite', s.name COLLATE Latin1_General_CI_AS, t.name COLLATE Latin1_General_CI_AS,
-    CASE WHEN pk.parent_object_id IS NOT NULL THEN 1 ELSE 0 END
-FROM DunnRite.sys.tables t
-JOIN DunnRite.sys.schemas s ON t.schema_id = s.schema_id
-LEFT JOIN DunnRite.sys.key_constraints pk ON t.object_id = pk.parent_object_id AND pk.type = 'PK'
-WHERE t.is_ms_shipped = 0
+DECLARE db_cursor CURSOR LOCAL FAST_FORWARD FOR
+    SELECT name FROM sys.databases
+    WHERE state_desc = 'ONLINE'
+      AND name NOT IN ('master', 'tempdb', 'msdb', 'model', 'ReportServer', 'ReportServerTempDB')
+      AND is_read_only = 0
+      AND HAS_DBACCESS(name) = 1  -- Only databases user can access
+    ORDER BY name;
 
-UNION ALL
+OPEN db_cursor;
+FETCH NEXT FROM db_cursor INTO @dbName;
 
-SELECT @@SERVERNAME, 'Q', s.name COLLATE Latin1_General_CI_AS, t.name COLLATE Latin1_General_CI_AS,
-    CASE WHEN pk.parent_object_id IS NOT NULL THEN 1 ELSE 0 END
-FROM Q.sys.tables t
-JOIN Q.sys.schemas s ON t.schema_id = s.schema_id
-LEFT JOIN Q.sys.key_constraints pk ON t.object_id = pk.parent_object_id AND pk.type = 'PK'
-WHERE t.is_ms_shipped = 0
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    IF @first = 0
+        SET @sql = @sql + ' UNION ALL ';
+    SET @first = 0;
 
-UNION ALL
+    SET @sql = @sql +
+        'SELECT ''SQL2(D300SQLDW01)'' AS [Server], ''' + @dbName + ''' AS [Database], ' +
+        's.name COLLATE Latin1_General_CI_AS AS [Schema], ' +
+        't.name COLLATE Latin1_General_CI_AS AS [Table], ' +
+        'CASE WHEN pk.parent_object_id IS NOT NULL THEN 1 ELSE 0 END AS HasPK ' +
+        'FROM [' + @dbName + '].sys.tables t ' +
+        'JOIN [' + @dbName + '].sys.schemas s ON t.schema_id = s.schema_id ' +
+        'LEFT JOIN [' + @dbName + '].sys.key_constraints pk ON t.object_id = pk.parent_object_id AND pk.type = ''PK'' ' +
+        'WHERE t.is_ms_shipped = 0';
 
-SELECT @@SERVERNAME, 'SRUtil', s.name COLLATE Latin1_General_CI_AS, t.name COLLATE Latin1_General_CI_AS,
-    CASE WHEN pk.parent_object_id IS NOT NULL THEN 1 ELSE 0 END
-FROM SRUtil.sys.tables t
-JOIN SRUtil.sys.schemas s ON t.schema_id = s.schema_id
-LEFT JOIN SRUtil.sys.key_constraints pk ON t.object_id = pk.parent_object_id AND pk.type = 'PK'
-WHERE t.is_ms_shipped = 0
+    FETCH NEXT FROM db_cursor INTO @dbName;
+END
 
-UNION ALL
+CLOSE db_cursor;
+DEALLOCATE db_cursor;
 
-SELECT @@SERVERNAME, 'Sunwest', s.name COLLATE Latin1_General_CI_AS, t.name COLLATE Latin1_General_CI_AS,
-    CASE WHEN pk.parent_object_id IS NOT NULL THEN 1 ELSE 0 END
-FROM Sunwest.sys.tables t
-JOIN Sunwest.sys.schemas s ON t.schema_id = s.schema_id
-LEFT JOIN Sunwest.sys.key_constraints pk ON t.object_id = pk.parent_object_id AND pk.type = 'PK'
-WHERE t.is_ms_shipped = 0
+SET @sql = @sql + ' ORDER BY [Database], [Schema], [Table]';
 
-UNION ALL
-
-SELECT @@SERVERNAME, 'Calgary', s.name COLLATE Latin1_General_CI_AS, t.name COLLATE Latin1_General_CI_AS,
-    CASE WHEN pk.parent_object_id IS NOT NULL THEN 1 ELSE 0 END
-FROM Calgary.sys.tables t
-JOIN Calgary.sys.schemas s ON t.schema_id = s.schema_id
-LEFT JOIN Calgary.sys.key_constraints pk ON t.object_id = pk.parent_object_id AND pk.type = 'PK'
-WHERE t.is_ms_shipped = 0
-
-UNION ALL
-
-SELECT @@SERVERNAME, 'Lethbridge', s.name COLLATE Latin1_General_CI_AS, t.name COLLATE Latin1_General_CI_AS,
-    CASE WHEN pk.parent_object_id IS NOT NULL THEN 1 ELSE 0 END
-FROM Lethbridge.sys.tables t
-JOIN Lethbridge.sys.schemas s ON t.schema_id = s.schema_id
-LEFT JOIN Lethbridge.sys.key_constraints pk ON t.object_id = pk.parent_object_id AND pk.type = 'PK'
-WHERE t.is_ms_shipped = 0
-
-UNION ALL
-
-SELECT @@SERVERNAME, 'Surrey', s.name COLLATE Latin1_General_CI_AS, t.name COLLATE Latin1_General_CI_AS,
-    CASE WHEN pk.parent_object_id IS NOT NULL THEN 1 ELSE 0 END
-FROM Surrey.sys.tables t
-JOIN Surrey.sys.schemas s ON t.schema_id = s.schema_id
-LEFT JOIN Surrey.sys.key_constraints pk ON t.object_id = pk.parent_object_id AND pk.type = 'PK'
-WHERE t.is_ms_shipped = 0
-
-UNION ALL
-
-SELECT @@SERVERNAME, 'JnL', s.name COLLATE Latin1_General_CI_AS, t.name COLLATE Latin1_General_CI_AS,
-    CASE WHEN pk.parent_object_id IS NOT NULL THEN 1 ELSE 0 END
-FROM JnL.sys.tables t
-JOIN JnL.sys.schemas s ON t.schema_id = s.schema_id
-LEFT JOIN JnL.sys.key_constraints pk ON t.object_id = pk.parent_object_id AND pk.type = 'PK'
-WHERE t.is_ms_shipped = 0
-
-ORDER BY [Database], [Schema], [Table];
+EXEC sp_executesql @sql;

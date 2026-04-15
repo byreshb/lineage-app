@@ -244,7 +244,11 @@ export class LineageService {
       const depName = dep.dependsOnName.toLowerCase();
       if (processedNames.has(depName)) continue;
 
-      if (dep.dependsOnType?.toUpperCase() === 'VIEW') {
+      // Skip SQL Server functions (table-valued, scalar, etc.)
+      const depType = dep.dependsOnType?.toUpperCase() || '';
+      if (depType.includes('FUNCTION')) continue;
+
+      if (depType === 'VIEW') {
         const view = this.repos.view.findByName(dep.dependsOnName);
         if (view) {
           this.saveEdge(reportId, sourceType, sourceId, sourceName,
@@ -698,8 +702,8 @@ export class LineageService {
       'Schema',
       'Server',
       'Database',
-      'In SysproReporting',
-      'SysproReporting Has PK'
+      'In SQL2(D300SQLDW01)',
+      'SQL2(D300SQLDW01) Has PK'
     ].join(',') + '\n';
 
     let csv = header;
