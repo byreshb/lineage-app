@@ -14,6 +14,7 @@ import {
   loadReportExecutionHistory,
   loadReportExecutions,
   loadLinkedReports,
+  loadTrn1Schema,
 } from '../parsers/csv.loader.js';
 import { extractTables } from '../parsers/sql.analyzer.js';
 import dayjs from 'dayjs';
@@ -40,6 +41,7 @@ export class MetadataService {
     this.repos.executionHistory.deleteAll();
     this.repos.reportExecution.deleteAll();
     this.repos.linkedReport.deleteAll();
+    this.repos.trn1Schema.deleteAll();
 
     let procCount = 0, viewCount = 0, tableCount = 0, linkedReportCount = 0;
     let sharedDatasetCount = 0, sharedDataSourceCount = 0, linkedServerCount = 0, dependencyCount = 0;
@@ -146,13 +148,25 @@ export class MetadataService {
       console.log('No linked_reports.csv found');
     }
 
+    // Load new Syspro schema (TRN1 server objects)
+    let trn1SchemaCount = 0;
+    const trn1SchemaFile = this.findFile(folder, 'new_syspro_schema.csv', 'trn1_schema.csv', 'trn1_objects.csv');
+    if (trn1SchemaFile) {
+      const trn1Objects = loadTrn1Schema(trn1SchemaFile);
+      this.repos.trn1Schema.saveAll(trn1Objects);
+      trn1SchemaCount = trn1Objects.length;
+      console.log(`New Syspro schema: ${trn1SchemaCount} objects`);
+    } else {
+      console.log('No new_syspro_schema.csv found (optional)');
+    }
+
     // Update metadata status
     this.repos.metadataStatus.updateCounts(
       procCount, viewCount, tableCount,
       sharedDatasetCount, sharedDataSourceCount, linkedServerCount, dependencyCount
     );
 
-    console.log(`Metadata loading complete: ${procCount} procs, ${viewCount} views, ${tableCount} tables, ${sharedDatasetCount} shared datasets, ${sharedDataSourceCount} shared data sources, ${linkedServerCount} linked servers, ${dependencyCount} dependencies, ${executionHistoryCount} execution history, ${linkedReportCount} linked reports`);
+    console.log(`Metadata loading complete: ${procCount} procs, ${viewCount} views, ${tableCount} tables, ${sharedDatasetCount} shared datasets, ${sharedDataSourceCount} shared data sources, ${linkedServerCount} linked servers, ${dependencyCount} dependencies, ${executionHistoryCount} execution history, ${linkedReportCount} linked reports, ${trn1SchemaCount} TRN1 objects`);
   }
 
   getStatus(): MetadataStatusDto {

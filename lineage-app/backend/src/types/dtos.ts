@@ -83,6 +83,7 @@ export interface SourceTableDto {
   sourceType: string | null;
   discoveryMethod: string;
   status: 'Yes' | 'No' | 'NO_TABLES';
+  isAvailableInNewSyspro: boolean | null;
 }
 
 // Metadata status response

@@ -139,6 +139,7 @@ function PbiViewer() {
                   <th colSpan="3" className="header-group db-header">Found in Database</th>
                   <th>Type</th>
                   <th>In SQL2(D300SQLDW01)</th>
+                  <th>In New Syspro</th>
                   <th>External Sources</th>
                 </tr>
                 <tr className="subheader-row">
@@ -151,11 +152,12 @@ function PbiViewer() {
                   <th></th>
                   <th></th>
                   <th></th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {tables.length === 0 && (
-                  <tr><td colSpan="9" className="empty-state">No table mappings found</td></tr>
+                  <tr><td colSpan="10" className="empty-state">No table mappings found</td></tr>
                 )}
                 {tables.map((table, idx) => (
                   <tr key={idx} className={
@@ -177,6 +179,14 @@ function PbiViewer() {
                     <td>
                       <span className={`status-badge status-${table.status?.toLowerCase()}`}>
                         {table.status}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`status-badge ${
+                        table.isAvailableInNewSyspro === true ? 'status-ok' :
+                        table.isAvailableInNewSyspro === false ? 'status-not-found' : 'status-unknown'
+                      }`}>
+                        {table.isAvailableInNewSyspro != null ? (table.isAvailableInNewSyspro ? 'Yes' : 'No') : '-'}
                       </span>
                     </td>
                     <td>

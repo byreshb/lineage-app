@@ -42,10 +42,38 @@ export interface LineageExportRow {
   status: string;
   // SQL2(D300SQLDW01) Has PK (Yes/No/-)
   hasPk: string;
+  // Available In New Syspro (Yes/No/-) - indicates if table exists in TRN1
+  isAvailableInNewSyspro: string;
 }
 
 export class CsvExportService {
   constructor(private repos: Repositories) {}
+
+  // Format entity name with schema prefix when available
+  private formatNameWithSchema(name: string, schema: string | null): string {
+    if (schema && schema.trim() !== '') {
+      return `${schema}.${name}`;
+    }
+    return name;  // Return as-is when no schema
+  }
+
+  // Look up an object in TRN1 schema
+  private findInTrn1(objectName: string): { found: boolean; schema: string | null } {
+    const match = this.repos.trn1Schema.findByObjectName(objectName);
+    if (match) {
+      return { found: true, schema: match.schemaName };
+    }
+    return { found: false, schema: null };
+  }
+
+  // Get TRN1 availability status as string (includes schema if found)
+  private getTrn1Status(tableName: string): string {
+    const trn1Match = this.findInTrn1(tableName);
+    if (trn1Match.found && trn1Match.schema) {
+      return `Yes (${trn1Match.schema})`;
+    }
+    return trn1Match.found ? 'Yes' : 'No';
+  }
 
   /**
    * Find all schemas where a table exists and format as comment
@@ -108,7 +136,8 @@ export class CsvExportService {
       'Linked Server',
       'External Database',
       'In SQL2(D300SQLDW01)',
-      'SQL2(D300SQLDW01) Has PK'
+      'SQL2(D300SQLDW01) Has PK',
+      'Available In New Syspro'
     ].join(',') + '\n';
 
     let csv = header;
@@ -208,6 +237,7 @@ export class CsvExportService {
           linkedServerDatabase,
           status: isNotFound ? 'No' : 'Yes',
           hasPk: hasPk,
+          isAvailableInNewSyspro: this.getTrn1Status(foundTable),
         });
       }
 
@@ -226,7 +256,10 @@ export class CsvExportService {
           // Combine proc paths
           const allProcs = [...chain.procs, ...bt.procPath];
           // Combine view paths - viewEdge.targetName is the first view, then bt.viewPath has nested views
-          const allViews = [viewEdge.targetName, ...bt.viewPath];
+          // Look up view to get schema for proper formatting
+          const firstView = viewEdge.targetId > 0 ? this.repos.view.findById(viewEdge.targetId) : this.repos.view.findByName(viewEdge.targetName);
+          const firstViewName = firstView ? this.formatNameWithSchema(firstView.viewName, firstView.schemaName) : viewEdge.targetName;
+          const allViews = [firstViewName, ...bt.viewPath];
 
           const { procs, views, comment } = this.splitPathsWithOverflow(allProcs, allViews);
           // Add comment for external tables not found in metadata
@@ -254,6 +287,7 @@ export class CsvExportService {
             linkedServerDatabase: bt.isExternal ? bt.database : '',
             status: bt.isExternal ? 'No' : 'Yes',
             hasPk: bt.hasPk,
+            isAvailableInNewSyspro: this.getTrn1Status(bt.tableName),
           });
         }
       }
@@ -264,6 +298,10 @@ export class CsvExportService {
 
         const { tables, procPath } = this.findTablesFromProc(procEdge.targetName, new Set());
 
+        // Look up proc to get schema for proper formatting
+        const firstProc = procEdge.targetId > 0 ? this.repos.storedProc.findById(procEdge.targetId) : this.repos.storedProc.findByName(procEdge.targetName);
+        const firstProcName = firstProc ? this.formatNameWithSchema(firstProc.procName, firstProc.schemaName) : procEdge.targetName;
+
         for (const bt of tables) {
           hasAnyTables = true;
 
@@ -271,7 +309,7 @@ export class CsvExportService {
           const chain = this.buildEntityChain(edges, datasetMap, procEdge);
 
           // Combine all procs: from dataset chain + procPath from tracing
-          const allProcs = [...chain.procs, procEdge.targetName, ...bt.procPath.filter(p => p !== procEdge.targetName)];
+          const allProcs = [...chain.procs, firstProcName, ...bt.procPath.filter(p => p.toLowerCase() !== firstProcName.toLowerCase())];
           // Add any views from the table tracing
           const allViews = [...chain.views, ...bt.viewPath];
 
@@ -301,6 +339,7 @@ export class CsvExportService {
             linkedServerDatabase: bt.isExternal ? bt.database : '',
             status: bt.isExternal ? 'No' : 'Yes',
             hasPk: bt.hasPk,
+            isAvailableInNewSyspro: this.getTrn1Status(bt.tableName),
           });
         }
       }
@@ -323,6 +362,7 @@ export class CsvExportService {
             linkedServerDatabase: '',
             status: 'NO TABLES',
             hasPk: '-',
+            isAvailableInNewSyspro: '-',
           });
         }
         if (datasets.length === 0) {
@@ -341,6 +381,7 @@ export class CsvExportService {
             linkedServerDatabase: '',
             status: 'NO TABLES',
             hasPk: '-',
+            isAvailableInNewSyspro: '-',
           });
         }
       }
@@ -378,6 +419,7 @@ export class CsvExportService {
           linkedServerDatabase: '',
           status: 'NO TABLES',
           hasPk: '-',
+          isAvailableInNewSyspro: '-',
         });
         continue;
       }
@@ -401,6 +443,7 @@ export class CsvExportService {
             linkedServerDatabase: '',
             status: 'NO SOURCE',
             hasPk: '-',
+            isAvailableInNewSyspro: '-',
           });
           continue;
         }
@@ -423,6 +466,7 @@ export class CsvExportService {
             linkedServerDatabase: '',
             status: 'Yes',
             hasPk: directTable.hasPk === true ? 'Yes' : directTable.hasPk === false ? 'No' : '-',
+            isAvailableInNewSyspro: this.getTrn1Status(directTable.tableName),
           });
           continue;
         }
@@ -441,7 +485,7 @@ export class CsvExportService {
               datasetName: pbiTable.tableName,
               datasetType: 'PowerBI',
               procs: [],
-              views: [excelRef],
+              views: [this.formatNameWithSchema(view.viewName, view.schemaName)],
               comment: '',
               metadataTable: 'No base tables found in view',
               metadataSchema: view.schemaName || '',
@@ -449,6 +493,7 @@ export class CsvExportService {
               linkedServerDatabase: '',
               status: 'VIEW_NO_TABLES',
               hasPk: '-',
+              isAvailableInNewSyspro: '-',
             });
             continue;
           }
@@ -477,6 +522,7 @@ export class CsvExportService {
               linkedServerDatabase: bt.isExternal ? bt.database : '',
               status: bt.isExternal ? 'No' : 'Yes',
               hasPk: bt.hasPk,
+              isAvailableInNewSyspro: this.getTrn1Status(bt.tableName),
             });
           }
         } else {
@@ -504,6 +550,7 @@ export class CsvExportService {
             linkedServerDatabase: '',
             status: 'No',
             hasPk: '-',
+            isAvailableInNewSyspro: this.getTrn1Status(notFoundTable),
           });
         }
       }
@@ -544,9 +591,15 @@ export class CsvExportService {
       visited.add(key);
 
       if (currentType === 'VIEW') {
-        viewList.unshift(currentName);
+        // Look up view to get schema
+        const view = currentId > 0 ? this.repos.view.findById(currentId) : this.repos.view.findByName(currentName);
+        const displayName = view ? this.formatNameWithSchema(view.viewName, view.schemaName) : currentName;
+        viewList.unshift(displayName);
       } else if (currentType === 'PROC') {
-        procList.unshift(currentName);
+        // Look up proc to get schema
+        const proc = currentId > 0 ? this.repos.storedProc.findById(currentId) : this.repos.storedProc.findByName(currentName);
+        const displayName = proc ? this.formatNameWithSchema(proc.procName, proc.schemaName) : currentName;
+        procList.unshift(displayName);
       } else if (currentType === 'DATASET') {
         const ds = datasetMap.get(currentId);
         if (ds) {
@@ -868,6 +921,7 @@ export class CsvExportService {
       this.escapeCsv(row.linkedServerDatabase || ''),
       this.escapeCsv(row.status),
       this.escapeCsv(row.hasPk),
+      this.escapeCsv(row.isAvailableInNewSyspro || '-'),
     ].join(',') + '\n';
   }
 

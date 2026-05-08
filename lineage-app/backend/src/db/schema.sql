@@ -231,3 +231,17 @@ CREATE TABLE IF NOT EXISTS linked_reports (
 CREATE INDEX IF NOT EXISTS idx_linked_reports_name ON linked_reports(linked_report_name);
 CREATE INDEX IF NOT EXISTS idx_linked_reports_path ON linked_reports(linked_report_path);
 CREATE INDEX IF NOT EXISTS idx_linked_reports_template ON linked_reports(template_path);
+
+-- TRN1 Schema (new Syspro server objects)
+CREATE TABLE IF NOT EXISTS trn1_schema (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    server TEXT,
+    database_name TEXT,
+    schema_name TEXT NOT NULL,
+    object_name TEXT NOT NULL,
+    object_type TEXT,
+    UNIQUE(server, database_name, schema_name, object_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_trn1_schema_lookup ON trn1_schema(object_name);
+CREATE INDEX IF NOT EXISTS idx_trn1_schema_full ON trn1_schema(schema_name, object_name);

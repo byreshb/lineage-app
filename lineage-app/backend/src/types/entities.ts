@@ -185,3 +185,13 @@ export interface LinkedReport {
   templatePath: string;
   starred: boolean;
 }
+
+// TRN1 Schema entity (objects from new Syspro server)
+export interface Trn1Schema {
+  id: number | null;
+  server: string | null;
+  databaseName: string | null;
+  schemaName: string;
+  objectName: string;
+  objectType: string | null;
+}

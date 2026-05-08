@@ -1,6 +1,6 @@
 import { parse } from 'csv-parse/sync';
 import fs from 'fs';
-import { StoredProcedure, View, SourceTable, SharedDataset, SharedDataSource, LinkedServer, ProcDependency, ReportExecutionHistory, ReportExecution } from '../types/index.js';
+import { StoredProcedure, View, SourceTable, SharedDataset, SharedDataSource, LinkedServer, ProcDependency, ReportExecutionHistory, ReportExecution, Trn1Schema } from '../types/index.js';
 
 function cleanString(value: string | undefined | null): string {
   if (!value) return '';
@@ -633,4 +633,42 @@ export function loadLinkedReports(csvFilePath: string): LinkedReportCsv[] {
 
   console.log(`Loaded ${linkedReports.length} linked reports from ${csvFilePath}`);
   return linkedReports;
+}
+
+// TRN1 Schema (new Syspro server objects) from CSV
+export function loadTrn1Schema(csvFilePath: string): Trn1Schema[] {
+  const schemas: Trn1Schema[] = [];
+  const content = fs.readFileSync(csvFilePath, 'utf-8');
+  const records = parse(content, { relax_column_count: true });
+
+  for (const line of records) {
+    if (line.length >= 4) {
+      const server = cleanString(line[0]);
+      const databaseName = cleanString(line[1]);
+      const schemaName = cleanString(line[2]);
+      const objectName = cleanString(line[3]);
+      const objectType = line.length > 4 ? cleanString(line[4]) : null;
+
+      // Skip header row
+      if (server.toLowerCase() === 'servername' ||
+          server.toLowerCase() === 'server' ||
+          databaseName.toLowerCase() === 'databasename') {
+        continue;
+      }
+
+      if (!schemaName || !objectName) continue;
+
+      schemas.push({
+        id: null,
+        server: server || null,
+        databaseName: databaseName || null,
+        schemaName: schemaName,
+        objectName: objectName,
+        objectType: objectType,
+      });
+    }
+  }
+
+  console.log(`Loaded ${schemas.length} TRN1 schema objects from ${csvFilePath}`);
+  return schemas;
 }

@@ -325,17 +325,25 @@ function ForceLineageGraph({ data, onNodeClick }) {
       .attr('fill', '#333')
       .attr('pointer-events', 'none')
       .text(d => {
-        const name = d.name || ''
-        return name.length > 18 ? name.substring(0, 15) + '...' : name
+        // Add schema prefix when available
+        const displayName = d.schema && d.schema.trim() !== ''
+          ? `${d.schema}.${d.name}`
+          : d.name || ''
+        return displayName.length > 20 ? displayName.substring(0, 17) + '...' : displayName
       })
 
     // Node tooltips
     node.append('title')
       .text(d => {
         const config = NODE_CONFIG[d.type] || NODE_CONFIG.TABLE
-        let tooltip = `${config.label}: ${d.name}`
+        // Include schema prefix in tooltip
+        const displayName = d.schema && d.schema.trim() !== ''
+          ? `${d.schema}.${d.name}`
+          : d.name
+        let tooltip = `${config.label}: ${displayName}`
         if (d.server) tooltip += `\nServer: ${d.server}`
         if (d.database) tooltip += `\nDatabase: ${d.database}`
+        if (d.schema) tooltip += `\nSchema: ${d.schema}`
         if (config.dashed) tooltip += `\n⚠️ NOT FOUND - Missing from metadata`
         return tooltip
       })

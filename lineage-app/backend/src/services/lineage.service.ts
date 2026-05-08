@@ -46,6 +46,23 @@ export class LineageService {
     return { isKnown: false, actualServer: 'UNKNOWN' };
   }
 
+  // Format entity name with schema prefix when available
+  private formatNameWithSchema(name: string, schema: string | null): string {
+    if (schema && schema.trim() !== '') {
+      return `${schema}.${name}`;
+    }
+    return name;  // Return as-is when no schema
+  }
+
+  // Look up an object in TRN1 schema
+  private findInTrn1(objectName: string): { found: boolean; schema: string | null } {
+    const match = this.repos.trn1Schema.findByObjectName(objectName);
+    if (match) {
+      return { found: true, schema: match.schemaName };
+    }
+    return { found: false, schema: null };
+  }
+
   buildLineage(reportId: number): void {
     // Refresh linked server map in case metadata was reloaded
     this.loadLinkedServers();
@@ -559,6 +576,7 @@ export class LineageService {
         sourceType: null,
         discoveryMethod: edge.discoveryMethod,
         status: isNotFound ? 'No' : 'Yes',
+        isAvailableInNewSyspro: null,
       };
 
       if (edge.targetId > 0) {
@@ -571,6 +589,13 @@ export class LineageService {
           dto.server = table.server;
           dto.sourceType = table.sourceType;
           dto.hasPk = table.hasPk;
+          // Check if table exists in TRN1 (new Syspro)
+          const trn1Match = this.findInTrn1(table.tableName);
+          dto.isAvailableInNewSyspro = trn1Match.found;
+          // Use TRN1 schema if found and current schema is empty
+          if (trn1Match.found && trn1Match.schema && !dto.schemaName) {
+            dto.schemaName = trn1Match.schema;
+          }
         }
       } else {
         // Handle linked server format: [ALIAS->ACTUAL].database.schema.table
@@ -614,6 +639,14 @@ export class LineageService {
             dto.sourceType = 'UNKNOWN';
           }
         }
+
+        // For all "not found" cases, check TRN1 availability using the parsed table name
+        const trn1Match = this.findInTrn1(dto.tableName);
+        dto.isAvailableInNewSyspro = trn1Match.found;
+        // Use TRN1 schema if found and current schema is empty
+        if (trn1Match.found && trn1Match.schema && !dto.schemaName) {
+          dto.schemaName = trn1Match.schema;
+        }
       }
 
       seen.set(key, dto);
@@ -652,6 +685,7 @@ export class LineageService {
         sourceType: 'N/A',
         discoveryMethod: 'N/A',
         status: 'NO_TABLES',
+        isAvailableInNewSyspro: null,
       });
     }
 

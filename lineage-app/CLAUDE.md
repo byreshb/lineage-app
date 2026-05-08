@@ -58,6 +58,7 @@ lineage-app/
    - `report_execution_history.csv` - (Optional) Execution stats from SSRS ExecutionLog
    - `report_executions.csv` - (Optional) Recent executions with parameters from ExecutionLog3
    - `FP Reporting_DataSourcesMapping.xlsx` - (Optional) Power BI data source mappings
+   - `new_syspro_schema.csv` - (Optional) Tables/views from new Syspro (TRN1) for "Available In New Syspro" column
 
 2. **Analyze RDL Files** - Two sources available:
    - **Files**: Parse physical RDL files from `reports/` folder
@@ -250,6 +251,9 @@ All SQL queries used to generate CSV files are in the `SQL/` folder. **Run these
 - `rdl_reports_bcp.txt` - BCP command to export RDL content from ReportServer
 - `report_execution_history.sql` - Report execution stats from SSRS ExecutionLog
 - `report_executions.sql` - Recent executions with parameters (last 30 days)
+
+**Run on new Syspro server (TRN1):**
+- `new_syspro_schema.sql` - Tables and views from new Syspro database (for "Available In New Syspro" column)
 
 **Note:** The dynamic queries automatically query ALL user databases on the server, excluding system databases (master, tempdb, msdb, model, ReportServer, ReportServerTempDB).
 

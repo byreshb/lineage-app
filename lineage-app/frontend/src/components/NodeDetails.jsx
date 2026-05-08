@@ -218,11 +218,16 @@ function NodeDetails({ node, onClose }) {
 
   if (!node) return null
 
+  // Format name with schema prefix
+  const displayName = node.schema && node.schema.trim() !== ''
+    ? `${node.schema}.${node.name}`
+    : node.name
+
   return (
     <div className="node-details-overlay" onClick={onClose}>
       <div className="node-details" onClick={e => e.stopPropagation()}>
         <div className="details-header">
-          <h3>{node.name}</h3>
+          <h3>{displayName}</h3>
           <button className="close-btn" onClick={onClose}>&times;</button>
         </div>
 

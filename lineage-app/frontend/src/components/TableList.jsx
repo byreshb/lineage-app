@@ -16,6 +16,7 @@ function TableList({ tables }) {
           <tr>
             <th>In SQL2(D300SQLDW01)</th>
             <th>SQL2(D300SQLDW01) Has PK</th>
+            <th>In New Syspro</th>
             <th>Metadata Table</th>
             <th>Metadata Schema</th>
             <th>Metadata Database</th>
@@ -30,6 +31,9 @@ function TableList({ tables }) {
             const rowClass = table.status === 'No' || table.status === 'NOT_FOUND' ? 'not-found-row' :
                             table.status === 'NO_TABLES' ? 'no-tables-row' : '';
 
+            const sysproBadgeClass = table.isAvailableInNewSyspro === true ? 'status-ok' :
+                                     table.isAvailableInNewSyspro === false ? 'status-not-found' : 'status-unknown';
+
             return (
               <tr key={index} className={rowClass}>
                 <td>
@@ -39,6 +43,11 @@ function TableList({ tables }) {
                 </td>
                 <td className="has-pk">
                   {table.hasPk != null ? (table.hasPk ? 'Yes' : 'No') : '-'}
+                </td>
+                <td>
+                  <span className={`status-badge ${sysproBadgeClass}`}>
+                    {table.isAvailableInNewSyspro != null ? (table.isAvailableInNewSyspro ? 'Yes' : 'No') : '-'}
+                  </span>
                 </td>
                 <td className="table-name">{table.tableName}</td>
                 <td>{table.schemaName || '-'}</td>
