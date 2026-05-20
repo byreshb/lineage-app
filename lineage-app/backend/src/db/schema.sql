@@ -245,3 +245,41 @@ CREATE TABLE IF NOT EXISTS trn1_schema (
 
 CREATE INDEX IF NOT EXISTS idx_trn1_schema_lookup ON trn1_schema(object_name);
 CREATE INDEX IF NOT EXISTS idx_trn1_schema_full ON trn1_schema(schema_name, object_name);
+
+-- SQL2 Table Columns (from SysproReporting database on D300SQLDW01)
+CREATE TABLE IF NOT EXISTS sql2_columns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    database_name TEXT,
+    schema_name TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    column_name TEXT NOT NULL,
+    data_type TEXT,
+    max_length INTEGER,
+    precision INTEGER,
+    scale INTEGER,
+    is_nullable BOOLEAN,
+    is_primary_key BOOLEAN,
+    UNIQUE(database_name, schema_name, table_name, column_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sql2_columns_table ON sql2_columns(schema_name, table_name);
+CREATE INDEX IF NOT EXISTS idx_sql2_columns_lookup ON sql2_columns(table_name);
+
+-- TRN1 Table Columns (from SysproCompanyTRN1 database on new Syspro server)
+CREATE TABLE IF NOT EXISTS trn1_columns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    server TEXT,
+    database_name TEXT,
+    schema_name TEXT NOT NULL,
+    object_name TEXT NOT NULL,
+    column_name TEXT NOT NULL,
+    data_type TEXT,
+    max_length INTEGER,
+    precision INTEGER,
+    scale INTEGER,
+    is_nullable BOOLEAN,
+    UNIQUE(database_name, schema_name, object_name, column_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_trn1_columns_object ON trn1_columns(schema_name, object_name);
+CREATE INDEX IF NOT EXISTS idx_trn1_columns_lookup ON trn1_columns(object_name);

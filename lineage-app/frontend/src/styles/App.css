@@ -1630,6 +1630,36 @@ tbody tr:hover {
   color: #1565c0;
 }
 
+/* Starred only checkbox */
+.starred-only-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  color: #333;
+  cursor: pointer;
+  margin-left: 1rem;
+  padding: 0.25rem 0.5rem;
+  background-color: #fff8e1;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+}
+
+.starred-only-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.starred-only-checkbox:hover {
+  background-color: #ffecb3;
+}
+
+.starred-only-checkbox:has(input:checked) {
+  background-color: #ffc107;
+  color: #333;
+}
+
 /* Execution badges in file list */
 .exec-badge {
   display: inline-block;

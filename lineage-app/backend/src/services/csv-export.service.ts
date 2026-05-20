@@ -119,6 +119,45 @@ export class CsvExportService {
     return this.buildCsv('Both', true);
   }
 
+  /**
+   * Export custom tables (tables ending with '+') from starred reports
+   * Shows whether each table exists in new Syspro (TRN1)
+   */
+  exportCustomTablesFromStarred(): string {
+    const header = [
+      'ReportName',
+      'ReportPath',
+      'Server',
+      'Database',
+      'Schema',
+      'TableName',
+      'HasPK',
+      'AvailableInNewSyspro'
+    ].join(',') + '\n';
+
+    let csv = header;
+
+    const customTables = this.repos.table.findCustomTablesFromStarredReports();
+
+    for (const table of customTables) {
+      const hasPk = table.hasPk === true ? 'Yes' : table.hasPk === false ? 'No' : '-';
+      const trn1Status = this.getTrn1Status(table.tableName);
+
+      csv += [
+        this.escapeCsv(table.reportName),
+        this.escapeCsv(table.reportPath),
+        this.escapeCsv(table.server),
+        this.escapeCsv(table.databaseName),
+        this.escapeCsv(table.schemaName),
+        this.escapeCsv(table.tableName),
+        hasPk,
+        trn1Status
+      ].join(',') + '\n';
+    }
+
+    return csv;
+  }
+
   private buildCsv(scope: 'SSRS' | 'PowerBI' | 'Both', starredOnly: boolean = false): string {
     // CSV header - matches old Excel format with additional columns
     // ReportType, ReportName, ReportPath, Proc1-Proc10, View1-View10, with Comment for overflow
@@ -940,4 +979,335 @@ export class CsvExportService {
     }
     return sanitized;
   }
+
+  /**
+   * Export report-to-table mapping from starred reports
+   * Shows which tables each starred report uses
+   */
+  exportReportTableMapping(): string {
+    const header = [
+      'ReportType',
+      'ReportName',
+      'ReportPath',
+      'TableSchema',
+      'TableName'
+    ].join(',') + '\n';
+
+    let csv = header;
+
+    // Process starred SSRS reports
+    const ssrsReports = this.repos.report.findStarred();
+    const completedSsrs = ssrsReports.filter((r) => r.status === 'COMPLETED');
+
+    for (const report of completedSsrs) {
+      const tables = this.getUniqueTablesFromReport(report.id!);
+      for (const table of tables) {
+        csv += [
+          'SSRS',
+          this.escapeCsv(report.reportName || report.fileName),
+          this.escapeCsv(report.filePath || ''),
+          this.escapeCsv(table.schema),
+          this.escapeCsv(table.tableName)
+        ].join(',') + '\n';
+      }
+    }
+
+    // Process starred Power BI reports
+    const pbiReports = this.repos.pbiReport.findAll().filter((r) => r.starred === true);
+
+    for (const report of pbiReports) {
+      const tables = this.getUniqueTablesFromPbiReport(report.id!);
+      for (const table of tables) {
+        csv += [
+          'PowerBI',
+          this.escapeCsv(report.reportName),
+          '',
+          this.escapeCsv(table.schema),
+          this.escapeCsv(table.tableName)
+        ].join(',') + '\n';
+      }
+    }
+
+    return csv;
+  }
+
+  /**
+   * Export unique table columns from starred reports
+   * Gets unique tables across all starred SSRS and Power BI reports,
+   * then exports column details from both SQL2 and TRN1 databases (deduplicated)
+   */
+  exportUniqueTableColumns(): string {
+    const header = [
+      'Schema_In_Report',
+      'TableName',
+      'ColumnName',
+      'InNewSyspro_TRN1',
+      'NewSyspro_TRN1_DataType',
+      'NewSyspro_TRN1_MaxLength',
+      'NewSyspro_TRN1_Nullable',
+      'InSQL2',
+      'SQL2_Schema',
+      'SQL2_DataType',
+      'SQL2_MaxLength',
+      'SQL2_Nullable'
+    ].join(',') + '\n';
+
+    let csv = header;
+
+    // Collect all unique tables across all starred reports
+    const allTables = new Map<string, { schema: string; tableName: string }>();
+
+    // Process starred SSRS reports
+    const ssrsReports = this.repos.report.findStarred();
+    const completedSsrs = ssrsReports.filter((r) => r.status === 'COMPLETED');
+
+    for (const report of completedSsrs) {
+      const tables = this.getUniqueTablesFromReport(report.id!);
+      for (const table of tables) {
+        const key = `${table.schema}.${table.tableName}`.toLowerCase();
+        if (!allTables.has(key)) {
+          allTables.set(key, table);
+        }
+      }
+    }
+
+    // Process starred Power BI reports
+    const pbiReports = this.repos.pbiReport.findAll().filter((r) => r.starred === true);
+
+    for (const report of pbiReports) {
+      const tables = this.getUniqueTablesFromPbiReport(report.id!);
+      for (const table of tables) {
+        const key = `${table.schema}.${table.tableName}`.toLowerCase();
+        if (!allTables.has(key)) {
+          allTables.set(key, table);
+        }
+      }
+    }
+
+    // Generate column rows for unique tables
+    csv += this.generateUniqueColumnRows(Array.from(allTables.values()));
+
+    return csv;
+  }
+
+  /**
+   * Generate CSV rows for unique tables (no report info)
+   */
+  private generateUniqueColumnRows(
+    tables: Array<{ schema: string; tableName: string }>
+  ): string {
+    let rows = '';
+
+    for (const table of tables) {
+      // Get SQL2 columns for this table
+      // IMPORTANT: First try with report's schema (e.g., "syspro") - this is preferred
+      // If table exists in multiple schemas (e.g., both "stage" and "syspro"), we use the
+      // schema that matches the report's reference. Only fall back to schema-less search
+      // if the table is not found in the report's schema.
+      let sql2Columns = this.repos.column.findSql2ColumnsByTable(table.tableName, table.schema);
+      let sql2Schema = table.schema; // Default to report schema
+      if (sql2Columns.length === 0) {
+        // Fallback: search without schema restriction
+        sql2Columns = this.repos.column.findSql2ColumnsByTable(table.tableName);
+      }
+      // Get the actual SQL2 schema from the first column (if found)
+      if (sql2Columns.length > 0 && sql2Columns[0].schemaName) {
+        sql2Schema = sql2Columns[0].schemaName;
+      }
+
+      // Get TRN1 columns - same logic: prefer report's schema first
+      let trn1Columns = this.repos.column.findTrn1ColumnsByObject(table.tableName, table.schema);
+      if (trn1Columns.length === 0) {
+        trn1Columns = this.repos.column.findTrn1ColumnsByObject(table.tableName);
+      }
+
+      // Build a map of TRN1 columns by name for matching
+      const trn1ByName = new Map(trn1Columns.map(c => [c.columnName.toLowerCase(), c]));
+
+      // Track which TRN1 columns we've matched
+      const matchedTrn1 = new Set<string>();
+
+      // If we have SQL2 columns, output one row per column
+      if (sql2Columns.length > 0) {
+        for (const sql2Col of sql2Columns) {
+          const trn1Col = trn1ByName.get(sql2Col.columnName.toLowerCase());
+          if (trn1Col) {
+            matchedTrn1.add(sql2Col.columnName.toLowerCase());
+          }
+
+          rows += [
+            this.escapeCsv(table.schema),           // Schema_In_Report
+            this.escapeCsv(table.tableName),        // TableName
+            this.escapeCsv(sql2Col.columnName),     // ColumnName
+            // NewSyspro columns first
+            trn1Col ? 'Yes' : 'No',                 // InNewSyspro
+            trn1Col ? this.escapeCsv(trn1Col.dataType) : '-',
+            trn1Col ? (trn1Col.maxLength?.toString() || '') : '-',
+            trn1Col ? (trn1Col.isNullable === true ? 'Yes' : trn1Col.isNullable === false ? 'No' : '-') : '-',
+            // SQL2 columns
+            'Yes',                                   // InSQL2
+            this.escapeCsv(sql2Col.schemaName || sql2Schema), // SQL2_Schema (actual schema)
+            this.escapeCsv(sql2Col.dataType),
+            sql2Col.maxLength?.toString() || '',
+            sql2Col.isNullable === true ? 'Yes' : sql2Col.isNullable === false ? 'No' : '-'
+          ].join(',') + '\n';
+        }
+
+        // Output NewSyspro-only columns (exist in NewSyspro but not SQL2)
+        for (const trn1Col of trn1Columns) {
+          if (!matchedTrn1.has(trn1Col.columnName.toLowerCase())) {
+            rows += [
+              this.escapeCsv(table.schema),           // Schema_In_Report
+              this.escapeCsv(table.tableName),        // TableName
+              this.escapeCsv(trn1Col.columnName),     // ColumnName
+              // NewSyspro columns
+              'Yes',                                   // InNewSyspro
+              this.escapeCsv(trn1Col.dataType),
+              trn1Col.maxLength?.toString() || '',
+              trn1Col.isNullable === true ? 'Yes' : trn1Col.isNullable === false ? 'No' : '-',
+              // SQL2 columns (not present)
+              'No',                                    // InSQL2
+              '-',                                     // SQL2_Schema
+              '-', '-', '-'
+            ].join(',') + '\n';
+          }
+        }
+      } else if (trn1Columns.length > 0) {
+        // Only NewSyspro columns exist
+        for (const trn1Col of trn1Columns) {
+          rows += [
+            this.escapeCsv(table.schema),           // Schema_In_Report
+            this.escapeCsv(table.tableName),        // TableName
+            this.escapeCsv(trn1Col.columnName),     // ColumnName
+            // NewSyspro columns
+            'Yes',                                   // InNewSyspro
+            this.escapeCsv(trn1Col.dataType),
+            trn1Col.maxLength?.toString() || '',
+            trn1Col.isNullable === true ? 'Yes' : trn1Col.isNullable === false ? 'No' : '-',
+            // SQL2 columns (not present)
+            'No',                                    // InSQL2
+            '-',                                     // SQL2_Schema
+            '-', '-', '-'
+          ].join(',') + '\n';
+        }
+      } else {
+        // No columns found in either database - output a row indicating this
+        rows += [
+          this.escapeCsv(table.schema),             // Schema_In_Report
+          this.escapeCsv(table.tableName),          // TableName
+          '(no columns found)',                     // ColumnName
+          // NewSyspro
+          'No',                                     // InNewSyspro
+          '-', '-', '-',
+          // SQL2
+          'No',                                     // InSQL2
+          '-',                                      // SQL2_Schema
+          '-', '-', '-'
+        ].join(',') + '\n';
+      }
+    }
+
+    return rows;
+  }
+
+  /**
+   * Get unique tables from an SSRS report's lineage
+   */
+  private getUniqueTablesFromReport(reportId: number): Array<{ schema: string; tableName: string }> {
+    const edges = this.repos.lineage.findByReportId(reportId);
+    const tables: Array<{ schema: string; tableName: string }> = [];
+    const seen = new Set<string>();
+
+    // Direct TABLE edges
+    const tableEdges = edges.filter((e) => e.targetType === 'TABLE');
+    for (const edge of tableEdges) {
+      if (edge.targetId > 0) {
+        const table = this.repos.table.findById(edge.targetId);
+        if (table) {
+          const key = `${table.schemaName}.${table.tableName}`.toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            tables.push({ schema: table.schemaName, tableName: table.tableName });
+          }
+        }
+      }
+    }
+
+    // Tables from VIEW edges (trace through views)
+    const viewEdges = edges.filter((e) => e.targetType === 'VIEW');
+    for (const viewEdge of viewEdges) {
+      if (!viewEdge.targetName) continue;
+      const baseTables = this.findAllBaseTables(viewEdge.targetName, [], [], new Set());
+      for (const bt of baseTables) {
+        if (!bt.isExternal) {
+          const key = `${bt.schema || 'dbo'}.${bt.tableName}`.toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            tables.push({ schema: bt.schema || 'dbo', tableName: bt.tableName });
+          }
+        }
+      }
+    }
+
+    // Tables from PROC edges (trace through procs)
+    const procEdges = edges.filter((e) => e.targetType === 'PROC');
+    for (const procEdge of procEdges) {
+      if (!procEdge.targetName) continue;
+      const { tables: procTables } = this.findTablesFromProc(procEdge.targetName, new Set());
+      for (const bt of procTables) {
+        if (!bt.isExternal) {
+          const key = `${bt.schema || 'dbo'}.${bt.tableName}`.toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            tables.push({ schema: bt.schema || 'dbo', tableName: bt.tableName });
+          }
+        }
+      }
+    }
+
+    return tables;
+  }
+
+  /**
+   * Get unique tables from a Power BI report
+   */
+  private getUniqueTablesFromPbiReport(reportId: number): Array<{ schema: string; tableName: string }> {
+    const pbiTables = this.repos.pbiTable.findByReportId(reportId);
+    const tables: Array<{ schema: string; tableName: string }> = [];
+    const seen = new Set<string>();
+
+    for (const pbiTable of pbiTables) {
+      const excelRef = pbiTable.sourceViewOrTable || '';
+      if (!excelRef) continue;
+
+      // Check if it's directly a table
+      const directTable = this.repos.table.findByName(excelRef);
+      if (directTable) {
+        const key = `${directTable.schemaName}.${directTable.tableName}`.toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          tables.push({ schema: directTable.schemaName, tableName: directTable.tableName });
+        }
+        continue;
+      }
+
+      // Check if it's a view - trace to base tables
+      const view = this.repos.view.findByName(excelRef);
+      if (view) {
+        const baseTables = this.findAllBaseTables(excelRef, [], [], new Set());
+        for (const bt of baseTables) {
+          if (!bt.isExternal) {
+            const key = `${bt.schema || 'dbo'}.${bt.tableName}`.toLowerCase();
+            if (!seen.has(key)) {
+              seen.add(key);
+              tables.push({ schema: bt.schema || 'dbo', tableName: bt.tableName });
+            }
+          }
+        }
+      }
+    }
+
+    return tables;
+  }
+
 }

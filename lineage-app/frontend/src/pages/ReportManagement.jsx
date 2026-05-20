@@ -81,6 +81,7 @@ function ReportManagement() {
     hideAlwaysError: false,
     onlySubscription: false,
   })
+  const [starredOnly, setStarredOnly] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [exportingHtml, setExportingHtml] = useState(false)
@@ -137,7 +138,7 @@ function ReportManagement() {
   // Reset to page 1 when filters or search changes
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, statusFilter, pageSize, execFilters])
+  }, [searchTerm, statusFilter, pageSize, execFilters, starredOnly])
 
   // Search linked reports when search term changes
   useEffect(() => {
@@ -205,21 +206,26 @@ function ReportManagement() {
     return files.filter(file => {
       const matchesSearch = searchTerm.length < 2 || file.fileName.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesStatus = statusFilter === 'ALL' || file.status === statusFilter
+      if (starredOnly && !file.starred) return false
       if (execFilters.hideNeverRan && file.neverRan === true) return false
       if (execFilters.hideStale && file.daysSinceLastRun !== null && file.daysSinceLastRun >= 30) return false
       if (execFilters.hideAlwaysError && file.successCount === 0 && file.errorCount > 0) return false
       if (execFilters.onlySubscription && (file.subscriptionCount === undefined || file.subscriptionCount === 0)) return false
       return matchesSearch && matchesStatus
     })
-  }, [files, searchTerm, statusFilter, execFilters])
+  }, [files, searchTerm, statusFilter, execFilters, starredOnly])
 
   // Combined results - includes linked reports only when status filter is ALL
   const combinedResults = useMemo(() => {
     // Use search matches when searching, otherwise all linked reports
     // But only include linked reports when status filter is ALL (linked reports don't have status)
-    const linkedToUse = statusFilter === 'ALL'
+    let linkedToUse = statusFilter === 'ALL'
       ? (searchTerm.length >= 2 ? linkedReportMatches : allLinkedReports)
       : []
+    // Filter linked reports by starred if starredOnly is enabled
+    if (starredOnly) {
+      linkedToUse = linkedToUse.filter(lr => lr.starred)
+    }
     const linked = linkedToUse.map(lr => ({
       type: 'linked',
       id: `linked-${lr.id}`,
@@ -237,7 +243,7 @@ function ReportManagement() {
       file: file,
     }))
     return [...linked, ...templates]
-  }, [searchTerm, linkedReportMatches, allLinkedReports, filteredFiles, statusFilter])
+  }, [searchTerm, linkedReportMatches, allLinkedReports, filteredFiles, statusFilter, starredOnly])
 
   // Paginated results
   const paginatedResults = useMemo(() => {
@@ -381,9 +387,9 @@ function ReportManagement() {
   const handleToggleStar = async (file) => {
     try {
       const response = await api.toggleStar(file.reportId)
-      // Update the file in state
+      // Update the file in state - use reportId for unique match
       setFiles(prev => prev.map(f =>
-        f.fileName === file.fileName ? { ...f, starred: response.data.starred } : f
+        f.reportId === file.reportId ? { ...f, starred: response.data.starred } : f
       ))
       // Update starred count
       setStarredCount(prev => response.data.starred ? prev + 1 : prev - 1)
@@ -528,7 +534,8 @@ function ReportManagement() {
   const handleRunSingle = async (file) => {
     try {
       setError(null)
-      setFiles(prev => prev.map(f => f.fileName === file.fileName ? { ...f, status: 'PROCESSING' } : f))
+      // Use filePath as unique identifier since reportId may not exist for pending files
+      setFiles(prev => prev.map(f => f.filePath === file.filePath ? { ...f, status: 'PROCESSING' } : f))
       if (rdlSource === 'DATABASE') {
         await api.analyzeFromDatabase(file.filePath)
       } else {
@@ -820,6 +827,57 @@ function ReportManagement() {
     }
   }
 
+  const handleExportCustomTablesFromStarred = async () => {
+    try {
+      setShowExportDropdown(false)
+      const response = await api.exportCustomTablesFromStarred()
+      const url = window.URL.createObjectURL(response.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'custom_tables_from_starred.csv'
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (err) {
+      setError('Error exporting custom tables: ' + err.message)
+    }
+  }
+
+  const handleExportReportTableMapping = async () => {
+    try {
+      setShowExportDropdown(false)
+      const response = await api.exportReportTableMapping()
+      const url = window.URL.createObjectURL(response.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'report_table_mapping.csv'
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (err) {
+      setError('Error exporting report-table mapping: ' + err.message)
+    }
+  }
+
+  const handleExportUniqueTableColumns = async () => {
+    try {
+      setShowExportDropdown(false)
+      const response = await api.exportUniqueTableColumns()
+      const url = window.URL.createObjectURL(response.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'unique_table_columns.csv'
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (err) {
+      setError('Error exporting table columns: ' + err.message)
+    }
+  }
+
   const handleExportPbiAllHtml = async () => {
     try {
       setShowExportDropdown(false)
@@ -935,6 +993,19 @@ function ReportManagement() {
               </button>
               <button onClick={handleExportAllHtml} disabled={exportingHtml || (statusCounts.COMPLETED || 0) === 0}>
                 {exportingHtml ? 'Exporting...' : 'All SSRS HTML'}
+              </button>
+              <hr />
+              <div className="export-section-label">Custom Tables</div>
+              <button onClick={handleExportCustomTablesFromStarred} disabled={starredCount + linkedStarredCount === 0}>
+                Custom Tables from Starred
+              </button>
+              <hr />
+              <div className="export-section-label">Table Columns (Starred)</div>
+              <button onClick={handleExportReportTableMapping} disabled={starredCount + linkedStarredCount + pbiStarredCount === 0}>
+                Report-Table Mapping
+              </button>
+              <button onClick={handleExportUniqueTableColumns} disabled={starredCount + linkedStarredCount + pbiStarredCount === 0}>
+                Unique Table Columns
               </button>
             </div>
           )}
@@ -1113,6 +1184,15 @@ function ReportManagement() {
                     </button>
                   ))}
                 </div>
+
+                <label className="starred-only-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={starredOnly}
+                    onChange={(e) => setStarredOnly(e.target.checked)}
+                  />
+                  <span>Starred Only ({starredCount + linkedStarredCount})</span>
+                </label>
 
                 <div className="page-size-selector">
                   <label>Show:</label>

@@ -15,6 +15,8 @@ import {
   loadReportExecutions,
   loadLinkedReports,
   loadTrn1Schema,
+  loadSql2Columns,
+  loadTrn1Columns,
 } from '../parsers/csv.loader.js';
 import { extractTables } from '../parsers/sql.analyzer.js';
 import dayjs from 'dayjs';
@@ -42,6 +44,8 @@ export class MetadataService {
     this.repos.reportExecution.deleteAll();
     this.repos.linkedReport.deleteAll();
     this.repos.trn1Schema.deleteAll();
+    this.repos.column.deleteAllSql2();
+    this.repos.column.deleteAllTrn1();
 
     let procCount = 0, viewCount = 0, tableCount = 0, linkedReportCount = 0;
     let sharedDatasetCount = 0, sharedDataSourceCount = 0, linkedServerCount = 0, dependencyCount = 0;
@@ -158,6 +162,30 @@ export class MetadataService {
       console.log(`New Syspro schema: ${trn1SchemaCount} objects`);
     } else {
       console.log('No new_syspro_schema.csv found (optional)');
+    }
+
+    // Load SQL2 table columns (for column comparison export)
+    let sql2ColumnCount = 0;
+    const sql2ColumnsFile = this.findFile(folder, 'table_columns_sql2.csv');
+    if (sql2ColumnsFile) {
+      const sql2Columns = loadSql2Columns(sql2ColumnsFile);
+      this.repos.column.saveAllSql2(sql2Columns);
+      sql2ColumnCount = sql2Columns.length;
+      console.log(`SQL2 columns: ${sql2ColumnCount} columns`);
+    } else {
+      console.log('No table_columns_sql2.csv found (optional)');
+    }
+
+    // Load TRN1 table columns (for column comparison export)
+    let trn1ColumnCount = 0;
+    const trn1ColumnsFile = this.findFile(folder, 'table_columns_trn1.csv');
+    if (trn1ColumnsFile) {
+      const trn1Columns = loadTrn1Columns(trn1ColumnsFile);
+      this.repos.column.saveAllTrn1(trn1Columns);
+      trn1ColumnCount = trn1Columns.length;
+      console.log(`TRN1 columns: ${trn1ColumnCount} columns`);
+    } else {
+      console.log('No table_columns_trn1.csv found (optional)');
     }
 
     // Update metadata status

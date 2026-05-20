@@ -216,6 +216,18 @@ export const exportAllStarredCsv = () => {
   return api.get('/reports/starred/export-all-csv', { responseType: 'blob' })
 }
 
+export const exportCustomTablesFromStarred = () => {
+  return api.get('/reports/starred/custom-tables/export', { responseType: 'blob' })
+}
+
+export const exportReportTableMapping = () => {
+  return api.get('/reports/starred/report-table-mapping/export', { responseType: 'blob' })
+}
+
+export const exportUniqueTableColumns = () => {
+  return api.get('/reports/starred/unique-table-columns/export', { responseType: 'blob' })
+}
+
 // Linked Reports API (Type 4 SSRS reports)
 export const searchLinkedReports = (searchTerm) => {
   return api.get('/metadata/linked-reports/search', { params: { q: searchTerm } })
@@ -292,5 +304,10 @@ export default {
   getAllLinkedReports,
   toggleLinkedReportStar,
   getStarredLinkedReports,
-  getStarredLinkedReportsCount
+  getStarredLinkedReportsCount,
+  // Custom tables export
+  exportCustomTablesFromStarred,
+  // Table columns export
+  exportReportTableMapping,
+  exportUniqueTableColumns
 }

@@ -1,6 +1,6 @@
 import { parse } from 'csv-parse/sync';
 import fs from 'fs';
-import { StoredProcedure, View, SourceTable, SharedDataset, SharedDataSource, LinkedServer, ProcDependency, ReportExecutionHistory, ReportExecution, Trn1Schema } from '../types/index.js';
+import { StoredProcedure, View, SourceTable, SharedDataset, SharedDataSource, LinkedServer, ProcDependency, ReportExecutionHistory, ReportExecution, Trn1Schema, Sql2Column, Trn1Column } from '../types/index.js';
 
 function cleanString(value: string | undefined | null): string {
   if (!value) return '';
@@ -671,4 +671,94 @@ export function loadTrn1Schema(csvFilePath: string): Trn1Schema[] {
 
   console.log(`Loaded ${schemas.length} TRN1 schema objects from ${csvFilePath}`);
   return schemas;
+}
+
+// SQL2 Table Columns (from SysproReporting database on D300SQLDW01)
+// CSV Format: Database, Schema, Table, Column, DataType, MaxLength, Precision, Scale, IsNullable, IsPrimaryKey
+export function loadSql2Columns(csvFilePath: string): Sql2Column[] {
+  const columns: Sql2Column[] = [];
+  const content = fs.readFileSync(csvFilePath, 'utf-8');
+  const records = parse(content, { relax_column_count: true });
+
+  for (const line of records) {
+    if (line.length >= 5) {
+      const databaseName = cleanString(line[0]);
+      const schemaName = cleanString(line[1]);
+      const tableName = cleanString(line[2]);
+      const columnName = cleanString(line[3]);
+      const dataType = cleanString(line[4]);
+
+      // Skip header row
+      if (databaseName.toLowerCase() === 'database' ||
+          schemaName.toLowerCase() === 'schema' ||
+          tableName.toLowerCase() === 'table') {
+        continue;
+      }
+
+      if (!schemaName || !tableName || !columnName) continue;
+
+      columns.push({
+        id: null,
+        databaseName: databaseName || null,
+        schemaName: schemaName,
+        tableName: tableName,
+        columnName: columnName,
+        dataType: dataType || null,
+        maxLength: line.length > 5 ? parseInteger(line[5]) : null,
+        precision: line.length > 6 ? parseInteger(line[6]) : null,
+        scale: line.length > 7 ? parseInteger(line[7]) : null,
+        isNullable: line.length > 8 ? parseBoolean(line[8]) : null,
+        isPrimaryKey: line.length > 9 ? parseBoolean(line[9]) : null,
+      });
+    }
+  }
+
+  console.log(`Loaded ${columns.length} SQL2 columns from ${csvFilePath}`);
+  return columns;
+}
+
+// TRN1 Table Columns (from SysproCompanyTRN1 database on new Syspro server)
+// CSV Format: Server, DatabaseName, SchemaName, ObjectName, ColumnName, DataType, MaxLength, Precision, Scale, IsNullable
+export function loadTrn1Columns(csvFilePath: string): Trn1Column[] {
+  const columns: Trn1Column[] = [];
+  const content = fs.readFileSync(csvFilePath, 'utf-8');
+  const records = parse(content, { relax_column_count: true });
+
+  for (const line of records) {
+    if (line.length >= 5) {
+      const server = cleanString(line[0]);
+      const databaseName = cleanString(line[1]);
+      const schemaName = cleanString(line[2]);
+      const objectName = cleanString(line[3]);
+      const columnName = cleanString(line[4]);
+      const dataType = line.length > 5 ? cleanString(line[5]) : null;
+
+      // Skip header row
+      if (server.toLowerCase() === 'server' ||
+          server.toLowerCase() === 'servername' ||
+          databaseName.toLowerCase() === 'databasename' ||
+          schemaName.toLowerCase() === 'schemaname') {
+        continue;
+      }
+
+      if (!schemaName || !objectName || !columnName) continue;
+
+      columns.push({
+        id: null,
+        server: server || null,
+        databaseName: databaseName || null,
+        schemaName: schemaName,
+        objectName: objectName,
+        columnName: columnName,
+        dataType: dataType,
+        maxLength: line.length > 6 ? parseInteger(line[6]) : null,
+        precision: line.length > 7 ? parseInteger(line[7]) : null,
+        scale: line.length > 8 ? parseInteger(line[8]) : null,
+        isNullable: line.length > 9 ? parseBoolean(line[9]) : null,
+      });
+    }
+  }
+
+  console.log(`Loaded ${columns.length} TRN1 columns from ${csvFilePath}`);
+  return columns;
 }

@@ -18,6 +18,7 @@ import { PbiTableRepository } from './pbi-table.repository.js';
 import { PbiLineageRepository } from './pbi-lineage.repository.js';
 import { LinkedReportRepository } from './linked-report.repository.js';
 import { Trn1SchemaRepository } from './trn1-schema.repository.js';
+import { ColumnRepository } from './column.repository.js';
 
 export {
   ReportRepository,
@@ -39,6 +40,7 @@ export {
   PbiLineageRepository,
   LinkedReportRepository,
   Trn1SchemaRepository,
+  ColumnRepository,
 };
 
 // Repository container for dependency injection
@@ -62,6 +64,7 @@ export interface Repositories {
   pbiLineage: PbiLineageRepository;
   linkedReport: LinkedReportRepository;
   trn1Schema: Trn1SchemaRepository;
+  column: ColumnRepository;
 }
 
 export function createRepositories(db: Database.Database): Repositories {
@@ -85,5 +88,6 @@ export function createRepositories(db: Database.Database): Repositories {
     pbiLineage: new PbiLineageRepository(db),
     linkedReport: new LinkedReportRepository(db),
     trn1Schema: new Trn1SchemaRepository(db),
+    column: new ColumnRepository(db),
   };
 }

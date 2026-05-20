@@ -232,13 +232,14 @@ export class LineageService {
         // LOCAL: Try to find view or table in local metadata (SysproReporting)
         const view = this.findView(ref);
         if (view) {
+          const viewDisplayName = this.formatNameWithSchema(view.viewName, view.schemaName);
           this.saveEdge(reportId, sourceType, sourceId, sourceName,
-            'VIEW', view.id!, view.viewName, 'READS_FROM', discoveryMethod);
+            'VIEW', view.id!, viewDisplayName, 'READS_FROM', discoveryMethod);
 
           if (view.definition) {
-            this.analyzeAndLinkTables(reportId, 'VIEW', view.id!, view.viewName, view.definition, visitedViews);
+            this.analyzeAndLinkTables(reportId, 'VIEW', view.id!, viewDisplayName, view.definition, visitedViews);
             // Also check for EXEC statements in view definitions (rare but possible)
-            this.analyzeAndLinkProcs(reportId, 'VIEW', view.id!, view.viewName, view.definition, new Set());
+            this.analyzeAndLinkProcs(reportId, 'VIEW', view.id!, viewDisplayName, view.definition, new Set());
           }
         } else {
           // Not a view - try to find as table
@@ -268,12 +269,13 @@ export class LineageService {
       if (depType === 'VIEW') {
         const view = this.repos.view.findByName(dep.dependsOnName);
         if (view) {
+          const viewDisplayName = this.formatNameWithSchema(view.viewName, view.schemaName);
           this.saveEdge(reportId, sourceType, sourceId, sourceName,
-            'VIEW', view.id!, view.viewName, 'READS_FROM', 'SQL_SERVER');
+            'VIEW', view.id!, viewDisplayName, 'READS_FROM', 'SQL_SERVER');
           if (view.definition) {
-            this.analyzeAndLinkTables(reportId, 'VIEW', view.id!, view.viewName, view.definition, visitedViews);
+            this.analyzeAndLinkTables(reportId, 'VIEW', view.id!, viewDisplayName, view.definition, visitedViews);
             // Also check for EXEC statements in view definitions
-            this.analyzeAndLinkProcs(reportId, 'VIEW', view.id!, view.viewName, view.definition, new Set());
+            this.analyzeAndLinkProcs(reportId, 'VIEW', view.id!, viewDisplayName, view.definition, new Set());
           }
         } else {
           this.saveEdge(reportId, sourceType, sourceId, sourceName,

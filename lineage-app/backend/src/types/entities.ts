@@ -195,3 +195,33 @@ export interface Trn1Schema {
   objectName: string;
   objectType: string | null;
 }
+
+// SQL2 Column entity (from SysproReporting database on D300SQLDW01)
+export interface Sql2Column {
+  id: number | null;
+  databaseName: string | null;
+  schemaName: string;
+  tableName: string;
+  columnName: string;
+  dataType: string | null;
+  maxLength: number | null;
+  precision: number | null;
+  scale: number | null;
+  isNullable: boolean | null;
+  isPrimaryKey: boolean | null;
+}
+
+// TRN1 Column entity (from SysproCompanyTRN1 database on new Syspro server)
+export interface Trn1Column {
+  id: number | null;
+  server: string | null;
+  databaseName: string | null;
+  schemaName: string;
+  objectName: string;
+  columnName: string;
+  dataType: string | null;
+  maxLength: number | null;
+  precision: number | null;
+  scale: number | null;
+  isNullable: boolean | null;
+}

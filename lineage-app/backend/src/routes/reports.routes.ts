@@ -416,4 +416,28 @@ export async function reportsRoutes(app: FastifyInstance, services: Services, re
     reply.type('text/csv');
     return csv;
   });
+
+  // GET /api/reports/starred/custom-tables/export - Export custom tables from starred reports
+  app.get('/starred/custom-tables/export', async (request, reply) => {
+    const csv = services.csvExport.exportCustomTablesFromStarred();
+    reply.header('Content-Disposition', 'attachment; filename="custom_tables_from_starred.csv"');
+    reply.type('text/csv');
+    return csv;
+  });
+
+  // GET /api/reports/starred/report-table-mapping/export - Export report-to-table mapping from starred reports
+  app.get('/starred/report-table-mapping/export', async (request, reply) => {
+    const csv = services.csvExport.exportReportTableMapping();
+    reply.header('Content-Disposition', 'attachment; filename="report_table_mapping.csv"');
+    reply.type('text/csv');
+    return csv;
+  });
+
+  // GET /api/reports/starred/unique-table-columns/export - Export unique table columns from starred reports
+  app.get('/starred/unique-table-columns/export', async (request, reply) => {
+    const csv = services.csvExport.exportUniqueTableColumns();
+    reply.header('Content-Disposition', 'attachment; filename="unique_table_columns.csv"');
+    reply.type('text/csv');
+    return csv;
+  });
 }

@@ -121,4 +121,51 @@ export class TableRepository {
   deleteAll(): void {
     this.db.prepare('DELETE FROM source_tables').run();
   }
+
+  /**
+   * Find custom tables (tables ending with '+') that are referenced by starred reports.
+   * Joins through lineage table to find tables connected to starred reports.
+   * Returns unique tables with report association info.
+   */
+  findCustomTablesFromStarredReports(): Array<{
+    reportId: number;
+    reportName: string;
+    reportPath: string;
+    server: string;
+    databaseName: string;
+    schemaName: string;
+    tableName: string;
+    hasPk: boolean | null;
+  }> {
+    const rows = this.db.prepare(`
+      SELECT DISTINCT
+        r.id as report_id,
+        COALESCE(r.report_name, r.file_name) as report_name,
+        r.file_path as report_path,
+        st.server,
+        st.database_name,
+        st.schema_name,
+        st.table_name,
+        st.has_pk
+      FROM reports r
+      INNER JOIN lineage l ON l.report_id = r.id
+      INNER JOIN source_tables st ON st.id = l.target_id
+      WHERE r.starred = 1
+        AND r.status = 'COMPLETED'
+        AND l.target_type = 'TABLE'
+        AND st.table_name LIKE '%+'
+      ORDER BY r.report_name, st.table_name
+    `).all() as any[];
+
+    return rows.map(row => ({
+      reportId: row.report_id,
+      reportName: row.report_name,
+      reportPath: row.report_path || '',
+      server: row.server || '',
+      databaseName: row.database_name || '',
+      schemaName: row.schema_name || '',
+      tableName: row.table_name,
+      hasPk: row.has_pk === 1 ? true : row.has_pk === 0 ? false : null,
+    }));
+  }
 }

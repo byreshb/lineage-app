@@ -199,6 +199,8 @@ npm run build
 - `pbi_reports` - Power BI report metadata
 - `pbi_tables` - Power BI table mappings from Excel
 - `pbi_lineage` - Power BI lineage edges
+- `sql2_columns` - Table column metadata from SQL2 (for column comparison export)
+- `trn1_columns` - Table column metadata from New Syspro TRN1 (for column comparison export)
 
 ## Node Types in Lineage Graph
 
@@ -254,6 +256,10 @@ All SQL queries used to generate CSV files are in the `SQL/` folder. **Run these
 
 **Run on new Syspro server (TRN1):**
 - `new_syspro_schema.sql` - Tables and views from new Syspro database (for "Available In New Syspro" column)
+- `table_columns_trn1.sql` - Table/view columns from new Syspro (for column comparison export)
+
+**Run on SQL2 (D300SQLDW01):**
+- `table_columns_sql2.sql` - Table columns from SysproReporting database (for column comparison export)
 
 **Note:** The dynamic queries automatically query ALL user databases on the server, excluding system databases (master, tempdb, msdb, model, ReportServer, ReportServerTempDB).
 
@@ -343,3 +349,53 @@ All exports use the same CSV structure:
 - `NO SOURCE` - Power BI table has no source entity specified
 
 **Note:** Tables from ALL databases on SQL2(D300SQLDW01) are now loaded. Tables not found may be on external linked servers or missing from the server entirely.
+
+### Table Columns Export (Starred Reports)
+
+The Export dropdown includes two additional exports for comparing table columns between SQL2 and New Syspro (TRN1):
+
+**Required CSV Files:**
+- `table_columns_sql2.csv` - Column metadata from SQL2 (run `SQL/table_columns_sql2.sql` on D300SQLDW01)
+- `table_columns_trn1.csv` - Column metadata from New Syspro (run `SQL/table_columns_trn1.sql` on TRN1)
+
+**Export 1: Report-Table Mapping**
+Shows which tables each starred report uses:
+```csv
+ReportType,ReportName,ReportPath,TableSchema,TableName
+SSRS,Branch Summary,/Report/Executive/Branch Summary,syspro,ArTrnDetail
+SSRS,Branch Summary,/Report/Executive/Branch Summary,dbo,DateDim
+```
+
+**Export 2: Unique Table Columns**
+Shows all columns from tables used by starred reports, comparing SQL2 vs New Syspro:
+
+| Column | Description |
+|--------|-------------|
+| Schema_In_Report | Schema referenced in the report (e.g., syspro) |
+| TableName | Table name |
+| ColumnName | Column name |
+| InNewSyspro_TRN1 | Yes/No - Does column exist in New Syspro? |
+| NewSyspro_TRN1_DataType | Data type in New Syspro |
+| NewSyspro_TRN1_MaxLength | Max length in New Syspro |
+| NewSyspro_TRN1_Nullable | Nullable in New Syspro |
+| InSQL2 | Yes/No - Does column exist in SQL2? |
+| SQL2_Schema | Actual schema where table exists in SQL2 |
+| SQL2_DataType | Data type in SQL2 |
+| SQL2_MaxLength | Max length in SQL2 |
+| SQL2_Nullable | Nullable in SQL2 |
+
+**How Column Comparison Works:**
+1. For each table used by starred reports, get columns from BOTH SQL2 and New Syspro
+2. Merge all unique columns (no duplicates)
+3. Mark which system(s) each column exists in
+
+| Scenario | InNewSyspro_TRN1 | InSQL2 | Meaning |
+|----------|------------------|--------|---------|
+| Column in both | Yes | Yes | Exists in both systems |
+| Column in SQL2 only | No | Yes | May be removed in New Syspro |
+| Column in New Syspro only | Yes | No | New column in New Syspro |
+
+**Schema Matching:**
+- First tries to match using the report's schema (e.g., `syspro.ArTrnDetail`)
+- If table exists in multiple schemas in SQL2, prefers the schema matching the report
+- Falls back to searching by table name only if not found in report's schema
