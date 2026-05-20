@@ -41,6 +41,9 @@ reports/
 # Backup files
 backup/
 
+# Temporary files
+tmp/
+
 # Claude local state
 .claude/
 **/.DS_Store
