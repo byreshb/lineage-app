@@ -1,5 +1,6 @@
 import { Repositories } from '../repositories/index.js';
 import { extractTables } from '../parsers/sql.analyzer.js';
+import * as XLSX from 'xlsx';
 
 // Represents a base table found through lineage tracing
 interface BaseTableResult {
@@ -978,6 +979,424 @@ export class CsvExportService {
       return `"${sanitized.replace(/"/g, '""')}"`;
     }
     return sanitized;
+  }
+
+  /**
+   * Check if a table name is a custom table (ends with "+")
+   */
+  private isCustomTable(tableName: string): boolean {
+    return tableName.endsWith('+');
+  }
+
+  /**
+   * Get custom tables from an SSRS report's lineage (tables ending with "+")
+   */
+  private getCustomTablesFromReport(reportId: number): Array<{ tableName: string }> {
+    const edges = this.repos.lineage.findByReportId(reportId);
+    const tables: Array<{ tableName: string }> = [];
+    const seen = new Set<string>();
+
+    // Direct TABLE edges
+    const tableEdges = edges.filter((e) => e.targetType === 'TABLE' || e.targetType === 'TABLE_NOT_FOUND');
+    for (const edge of tableEdges) {
+      let tableName = '';
+      if (edge.targetId > 0) {
+        const table = this.repos.table.findById(edge.targetId);
+        if (table) {
+          tableName = table.tableName;
+        }
+      } else if (edge.targetName) {
+        // Parse table name from path
+        const parsed = this.parseExternalTablePath(edge.targetName);
+        tableName = parsed.tableName;
+      }
+
+      if (tableName && this.isCustomTable(tableName)) {
+        const key = tableName.toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          tables.push({ tableName });
+        }
+      }
+    }
+
+    // Tables from VIEW edges (trace through views)
+    const viewEdges = edges.filter((e) => e.targetType === 'VIEW');
+    for (const viewEdge of viewEdges) {
+      if (!viewEdge.targetName) continue;
+      const baseTables = this.findAllBaseTables(viewEdge.targetName, [], [], new Set());
+      for (const bt of baseTables) {
+        if (this.isCustomTable(bt.tableName)) {
+          const key = bt.tableName.toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            tables.push({ tableName: bt.tableName });
+          }
+        }
+      }
+    }
+
+    // Tables from PROC edges (trace through procs)
+    const procEdges = edges.filter((e) => e.targetType === 'PROC');
+    for (const procEdge of procEdges) {
+      if (!procEdge.targetName) continue;
+      const { tables: procTables } = this.findTablesFromProc(procEdge.targetName, new Set());
+      for (const bt of procTables) {
+        if (this.isCustomTable(bt.tableName)) {
+          const key = bt.tableName.toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            tables.push({ tableName: bt.tableName });
+          }
+        }
+      }
+    }
+
+    return tables;
+  }
+
+  /**
+   * Get custom tables from a Power BI report (tables ending with "+")
+   */
+  private getCustomTablesFromPbiReport(reportId: number): Array<{ tableName: string }> {
+    const pbiTables = this.repos.pbiTable.findByReportId(reportId);
+    const tables: Array<{ tableName: string }> = [];
+    const seen = new Set<string>();
+
+    for (const pbiTable of pbiTables) {
+      const excelRef = pbiTable.sourceViewOrTable || '';
+      if (!excelRef) continue;
+
+      // Check if it's directly a table
+      const directTable = this.repos.table.findByName(excelRef);
+      if (directTable && this.isCustomTable(directTable.tableName)) {
+        const key = directTable.tableName.toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          tables.push({ tableName: directTable.tableName });
+        }
+        continue;
+      }
+
+      // Check if it's a view - trace to base tables
+      const view = this.repos.view.findByName(excelRef);
+      if (view) {
+        const baseTables = this.findAllBaseTables(excelRef, [], [], new Set());
+        for (const bt of baseTables) {
+          if (this.isCustomTable(bt.tableName)) {
+            const key = bt.tableName.toLowerCase();
+            if (!seen.has(key)) {
+              seen.add(key);
+              tables.push({ tableName: bt.tableName });
+            }
+          }
+        }
+      }
+    }
+
+    return tables;
+  }
+
+  /**
+   * Export unique custom tables by report as CSV
+   * Columns: Report Name, Custom Table, Type (SSRS/PowerBI), Report Path
+   */
+  exportCustomTablesByReport(scope: 'SSRS' | 'PowerBI' | 'Both', starredOnly: boolean = false): string {
+    const header = ['Report Name', 'Custom Table', 'Type', 'Report Path'].join(',') + '\n';
+    let csv = header;
+
+    const customTablesByReport: Array<{
+      reportName: string;
+      customTable: string;
+      reportType: 'SSRS' | 'PowerBI';
+      reportPath: string;
+    }> = [];
+
+    // Process SSRS reports
+    if (scope === 'SSRS' || scope === 'Both') {
+      let reports = this.repos.report.findAll().filter((r) => r.status === 'COMPLETED');
+      if (starredOnly) {
+        reports = reports.filter((r) => r.starred === true);
+      }
+
+      for (const report of reports) {
+        const customTables = this.getCustomTablesFromReport(report.id!);
+        for (const table of customTables) {
+          customTablesByReport.push({
+            reportName: report.reportName || report.fileName,
+            customTable: table.tableName,
+            reportType: 'SSRS',
+            reportPath: report.filePath || '',
+          });
+        }
+      }
+    }
+
+    // Process Power BI reports
+    if (scope === 'PowerBI' || scope === 'Both') {
+      let reports = this.repos.pbiReport.findAll();
+      if (starredOnly) {
+        reports = reports.filter((r) => r.starred === true);
+      }
+
+      for (const report of reports) {
+        const customTables = this.getCustomTablesFromPbiReport(report.id!);
+        for (const table of customTables) {
+          customTablesByReport.push({
+            reportName: report.reportName,
+            customTable: table.tableName,
+            reportType: 'PowerBI',
+            reportPath: '',
+          });
+        }
+      }
+    }
+
+    // Deduplicate per report (same table can appear once per report)
+    const seenPerReport = new Set<string>();
+    for (const row of customTablesByReport) {
+      const key = `${row.reportName.toLowerCase()}|${row.customTable.toLowerCase()}`;
+      if (!seenPerReport.has(key)) {
+        seenPerReport.add(key);
+        csv += [
+          this.escapeCsv(row.reportName),
+          this.escapeCsv(row.customTable),
+          row.reportType,
+          this.escapeCsv(row.reportPath)
+        ].join(',') + '\n';
+      }
+    }
+
+    return csv;
+  }
+
+  /**
+   * Export unique custom tables as CSV (just table names, no report info)
+   * Single column: Custom Table
+   */
+  exportUniqueCustomTables(scope: 'SSRS' | 'PowerBI' | 'Both', starredOnly: boolean = false): string {
+    const header = 'Custom Table\n';
+    let csv = header;
+
+    const allCustomTables = new Set<string>();
+
+    // Process SSRS reports
+    if (scope === 'SSRS' || scope === 'Both') {
+      let reports = this.repos.report.findAll().filter((r) => r.status === 'COMPLETED');
+      if (starredOnly) {
+        reports = reports.filter((r) => r.starred === true);
+      }
+
+      for (const report of reports) {
+        const customTables = this.getCustomTablesFromReport(report.id!);
+        for (const table of customTables) {
+          allCustomTables.add(table.tableName);
+        }
+      }
+    }
+
+    // Process Power BI reports
+    if (scope === 'PowerBI' || scope === 'Both') {
+      let reports = this.repos.pbiReport.findAll();
+      if (starredOnly) {
+        reports = reports.filter((r) => r.starred === true);
+      }
+
+      for (const report of reports) {
+        const customTables = this.getCustomTablesFromPbiReport(report.id!);
+        for (const table of customTables) {
+          allCustomTables.add(table.tableName);
+        }
+      }
+    }
+
+    // Sort and output
+    const sortedTables = Array.from(allCustomTables).sort();
+    for (const tableName of sortedTables) {
+      csv += this.escapeCsv(tableName) + '\n';
+    }
+
+    return csv;
+  }
+
+  /**
+   * Export as Excel workbook with 3 sheets:
+   * 1. Lineage - Full lineage data
+   * 2. Unique Custom Tables by Report - Custom tables (ending with "+") per report
+   * 3. Unique Custom Tables - Just unique custom table names
+   */
+  exportAsExcel(scope: 'SSRS' | 'PowerBI' | 'Both', starredOnly: boolean = false): Buffer {
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: Lineage (existing CSV data converted to sheet)
+    const lineageData = this.getLineageData(scope, starredOnly);
+    const lineageSheet = XLSX.utils.aoa_to_sheet(lineageData);
+    XLSX.utils.book_append_sheet(wb, lineageSheet, 'Lineage');
+
+    // Collect custom tables by report
+    const customTablesByReport: Array<{
+      reportName: string;
+      customTable: string;
+      reportType: 'SSRS' | 'PowerBI';
+      reportPath: string;
+    }> = [];
+
+    // Process SSRS reports
+    if (scope === 'SSRS' || scope === 'Both') {
+      let reports = this.repos.report.findAll().filter((r) => r.status === 'COMPLETED');
+      if (starredOnly) {
+        reports = reports.filter((r) => r.starred === true);
+      }
+
+      for (const report of reports) {
+        const customTables = this.getCustomTablesFromReport(report.id!);
+        for (const table of customTables) {
+          customTablesByReport.push({
+            reportName: report.reportName || report.fileName,
+            customTable: table.tableName,
+            reportType: 'SSRS',
+            reportPath: report.filePath || '',
+          });
+        }
+      }
+    }
+
+    // Process Power BI reports
+    if (scope === 'PowerBI' || scope === 'Both') {
+      let reports = this.repos.pbiReport.findAll();
+      if (starredOnly) {
+        reports = reports.filter((r) => r.starred === true);
+      }
+
+      for (const report of reports) {
+        const customTables = this.getCustomTablesFromPbiReport(report.id!);
+        for (const table of customTables) {
+          customTablesByReport.push({
+            reportName: report.reportName,
+            customTable: table.tableName,
+            reportType: 'PowerBI',
+            reportPath: '',
+          });
+        }
+      }
+    }
+
+    // Sheet 2: Unique Custom Tables by Report
+    const sheet2Header = ['Report Name', 'Custom Table', 'Type', 'Report Path'];
+    const sheet2Data = [sheet2Header];
+
+    // Deduplicate per report (same table can appear once per report)
+    const seenPerReport = new Set<string>();
+    for (const row of customTablesByReport) {
+      const key = `${row.reportName.toLowerCase()}|${row.customTable.toLowerCase()}`;
+      if (!seenPerReport.has(key)) {
+        seenPerReport.add(key);
+        sheet2Data.push([row.reportName, row.customTable, row.reportType, row.reportPath]);
+      }
+    }
+
+    const sheet2 = XLSX.utils.aoa_to_sheet(sheet2Data);
+    XLSX.utils.book_append_sheet(wb, sheet2, 'Unique Custom Tables by Report');
+
+    // Sheet 3: Unique Custom Tables (just table names)
+    const sheet3Header = ['Custom Table'];
+    const sheet3Data = [sheet3Header];
+
+    const uniqueTables = new Set<string>();
+    for (const row of customTablesByReport) {
+      const key = row.customTable.toLowerCase();
+      if (!uniqueTables.has(key)) {
+        uniqueTables.add(key);
+        sheet3Data.push([row.customTable]);
+      }
+    }
+
+    const sheet3 = XLSX.utils.aoa_to_sheet(sheet3Data);
+    XLSX.utils.book_append_sheet(wb, sheet3, 'Unique Custom Tables');
+
+    // Write to buffer
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    return buffer;
+  }
+
+  /**
+   * Get lineage data as array of arrays (for Excel sheet)
+   */
+  private getLineageData(scope: 'SSRS' | 'PowerBI' | 'Both', starredOnly: boolean = false): string[][] {
+    const header = [
+      'ReportType',
+      'Report Name',
+      'Report Path',
+      'Dataset',
+      'Dataset Type',
+      'Proc1', 'Proc2', 'Proc3', 'Proc4', 'Proc5', 'Proc6', 'Proc7', 'Proc8', 'Proc9', 'Proc10',
+      'View1', 'View2', 'View3', 'View4', 'View5', 'View6', 'View7', 'View8', 'View9', 'View10',
+      'Comment',
+      'Table',
+      'Schema',
+      'Linked Server',
+      'External Database',
+      'In SQL2(D300SQLDW01)',
+      'SQL2(D300SQLDW01) Has PK',
+      'Available In New Syspro'
+    ];
+
+    const data: string[][] = [header];
+
+    // Build CSV string then parse it back - reuses existing logic
+    let csvContent = '';
+    if (scope === 'SSRS' || scope === 'Both') {
+      csvContent += this.getSsrsRows(starredOnly);
+    }
+    if (scope === 'PowerBI' || scope === 'Both') {
+      csvContent += this.getPbiRows(starredOnly);
+    }
+
+    // Parse CSV rows into arrays
+    if (csvContent) {
+      const lines = csvContent.trim().split('\n');
+      for (const line of lines) {
+        if (line.trim()) {
+          // Simple CSV parsing (handles quoted values)
+          const row = this.parseCsvLine(line);
+          data.push(row);
+        }
+      }
+    }
+
+    return data;
+  }
+
+  /**
+   * Parse a CSV line into an array of values (handles quoted values with commas)
+   */
+  private parseCsvLine(line: string): string[] {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const nextChar = line[i + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          current += '"';
+          i++; // Skip the escaped quote
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current);
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+
+    result.push(current); // Don't forget the last field
+    return result;
   }
 
   /**

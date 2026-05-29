@@ -2146,6 +2146,14 @@ tbody tr:hover {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+/* Export Buttons Group - Right Aligned */
+.export-buttons-group {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-left: auto;
+}
+
 /* Export Dropdown */
 .export-dropdown-container {
   position: relative;

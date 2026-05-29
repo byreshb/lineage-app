@@ -191,6 +191,21 @@ export const exportUnifiedCsv = (scope = 'both') => {
   return api.get(`/reports/unified-export?scope=${scope}`, { responseType: 'blob' })
 }
 
+// Unified Excel export (3 sheets: Lineage, Custom Tables by Report, Unique Custom Tables)
+export const exportUnifiedExcel = (scope = 'both', starred = false) => {
+  return api.get(`/reports/unified-export-excel?scope=${scope}&starred=${starred}`, { responseType: 'blob' })
+}
+
+// Export custom tables by report (tables ending with "+")
+export const exportCustomTablesByReport = (scope = 'both', starred = false) => {
+  return api.get(`/reports/custom-tables-by-report/export?scope=${scope}&starred=${starred}`, { responseType: 'blob' })
+}
+
+// Export unique custom tables (tables ending with "+")
+export const exportUniqueCustomTablesCsv = (scope = 'both', starred = false) => {
+  return api.get(`/reports/unique-custom-tables/export?scope=${scope}&starred=${starred}`, { responseType: 'blob' })
+}
+
 // Starring API
 export const toggleStar = (reportId) => {
   return api.post(`/reports/${reportId}/star`)
@@ -292,6 +307,7 @@ export default {
   exportPbiStarredHtml,
   // Unified export
   exportUnifiedCsv,
+  exportUnifiedExcel,
   // Starring
   toggleStar,
   getStarredReports,
@@ -309,5 +325,8 @@ export default {
   exportCustomTablesFromStarred,
   // Table columns export
   exportReportTableMapping,
-  exportUniqueTableColumns
+  exportUniqueTableColumns,
+  // Custom tables CSV exports
+  exportCustomTablesByReport,
+  exportUniqueCustomTablesCsv
 }

@@ -440,4 +440,95 @@ export async function reportsRoutes(app: FastifyInstance, services: Services, re
     reply.type('text/csv');
     return csv;
   });
+
+  // GET /api/reports/unified-export-excel - Unified Excel export with 3 sheets (Lineage, Custom Tables by Report, Unique Custom Tables)
+  app.get('/unified-export-excel', async (request, reply) => {
+    const { scope, starred } = request.query as { scope?: string; starred?: string };
+
+    let exportScope: 'SSRS' | 'PowerBI' | 'Both';
+    let fileName: string;
+
+    switch (scope?.toLowerCase()) {
+      case 'pbi':
+      case 'powerbi':
+        exportScope = 'PowerBI';
+        fileName = 'lineage_powerbi_reports';
+        break;
+      case 'ssrs':
+        exportScope = 'SSRS';
+        fileName = 'lineage_ssrs_reports';
+        break;
+      case 'both':
+      case 'all':
+      default:
+        exportScope = 'Both';
+        fileName = 'lineage_all_reports';
+        break;
+    }
+
+    const starredOnly = starred === 'true';
+    if (starredOnly) {
+      fileName += '_starred';
+    }
+
+    const buffer = services.csvExport.exportAsExcel(exportScope, starredOnly);
+
+    reply.header('Content-Disposition', `attachment; filename="${fileName}.xlsx"`);
+    reply.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    return reply.send(buffer);
+  });
+
+  // GET /api/reports/custom-tables-by-report/export - Export custom tables (ending with "+") by report
+  app.get('/custom-tables-by-report/export', async (request, reply) => {
+    const { scope, starred } = request.query as { scope?: string; starred?: string };
+
+    let exportScope: 'SSRS' | 'PowerBI' | 'Both';
+    switch (scope?.toLowerCase()) {
+      case 'pbi':
+      case 'powerbi':
+        exportScope = 'PowerBI';
+        break;
+      case 'ssrs':
+        exportScope = 'SSRS';
+        break;
+      default:
+        exportScope = 'Both';
+        break;
+    }
+
+    const starredOnly = starred === 'true';
+    const csv = services.csvExport.exportCustomTablesByReport(exportScope, starredOnly);
+
+    const fileName = starredOnly ? 'custom_tables_by_report_starred.csv' : 'custom_tables_by_report.csv';
+    reply.header('Content-Disposition', `attachment; filename="${fileName}"`);
+    reply.type('text/csv');
+    return csv;
+  });
+
+  // GET /api/reports/unique-custom-tables/export - Export unique custom tables (ending with "+")
+  app.get('/unique-custom-tables/export', async (request, reply) => {
+    const { scope, starred } = request.query as { scope?: string; starred?: string };
+
+    let exportScope: 'SSRS' | 'PowerBI' | 'Both';
+    switch (scope?.toLowerCase()) {
+      case 'pbi':
+      case 'powerbi':
+        exportScope = 'PowerBI';
+        break;
+      case 'ssrs':
+        exportScope = 'SSRS';
+        break;
+      default:
+        exportScope = 'Both';
+        break;
+    }
+
+    const starredOnly = starred === 'true';
+    const csv = services.csvExport.exportUniqueCustomTables(exportScope, starredOnly);
+
+    const fileName = starredOnly ? 'unique_custom_tables_starred.csv' : 'unique_custom_tables.csv';
+    reply.header('Content-Disposition', `attachment; filename="${fileName}"`);
+    reply.type('text/csv');
+    return csv;
+  });
 }

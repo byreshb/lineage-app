@@ -96,8 +96,8 @@ function ReportManagement() {
   const [pbiCurrentPage, setPbiCurrentPage] = useState(1)
   const [pbiStarredCount, setPbiStarredCount] = useState(0)
 
-  // Export dropdown state
-  const [showExportDropdown, setShowExportDropdown] = useState(false)
+  // Export dropdown states (split into multiple dropdowns)
+  const [showExportDropdown, setShowExportDropdown] = useState(null) // 'lineage' | 'custom' | 'columns' | null
 
   // Linked reports state (Type 4 SSRS reports)
   const [linkedReportMatches, setLinkedReportMatches] = useState([])
@@ -720,7 +720,7 @@ function ReportManagement() {
 
   const handleUnifiedExport = async (scope) => {
     try {
-      setShowExportDropdown(false)
+      setShowExportDropdown(null)
       const response = await api.exportUnifiedCsv(scope)
       const fileName = scope === 'ssrs' ? 'lineage_ssrs_reports.csv' :
                        scope === 'pbi' ? 'lineage_powerbi_reports.csv' :
@@ -740,7 +740,7 @@ function ReportManagement() {
 
   const handleExportStarredCsv = async () => {
     try {
-      setShowExportDropdown(false)
+      setShowExportDropdown(null)
       const response = await api.exportStarredCsv()
       const url = window.URL.createObjectURL(response.data)
       const a = document.createElement('a')
@@ -757,7 +757,7 @@ function ReportManagement() {
 
   const handleExportStarredHtml = async () => {
     try {
-      setShowExportDropdown(false)
+      setShowExportDropdown(null)
       setExportingHtml(true)
       const response = await api.exportStarredHtml()
       const blob = new Blob([response.data], { type: 'text/html' })
@@ -778,7 +778,7 @@ function ReportManagement() {
 
   const handleExportStarredPbiCsv = async () => {
     try {
-      setShowExportDropdown(false)
+      setShowExportDropdown(null)
       const response = await api.exportStarredPbiCsv()
       const url = window.URL.createObjectURL(response.data)
       const a = document.createElement('a')
@@ -795,7 +795,7 @@ function ReportManagement() {
 
   const handleExportAllPbiCsv = async () => {
     try {
-      setShowExportDropdown(false)
+      setShowExportDropdown(null)
       const response = await api.exportAllPbiCsv()
       const url = window.URL.createObjectURL(response.data)
       const a = document.createElement('a')
@@ -812,7 +812,7 @@ function ReportManagement() {
 
   const handleExportAllStarredCsv = async () => {
     try {
-      setShowExportDropdown(false)
+      setShowExportDropdown(null)
       const response = await api.exportAllStarredCsv()
       const url = window.URL.createObjectURL(response.data)
       const a = document.createElement('a')
@@ -829,7 +829,7 @@ function ReportManagement() {
 
   const handleExportCustomTablesFromStarred = async () => {
     try {
-      setShowExportDropdown(false)
+      setShowExportDropdown(null)
       const response = await api.exportCustomTablesFromStarred()
       const url = window.URL.createObjectURL(response.data)
       const a = document.createElement('a')
@@ -846,7 +846,7 @@ function ReportManagement() {
 
   const handleExportReportTableMapping = async () => {
     try {
-      setShowExportDropdown(false)
+      setShowExportDropdown(null)
       const response = await api.exportReportTableMapping()
       const url = window.URL.createObjectURL(response.data)
       const a = document.createElement('a')
@@ -863,7 +863,7 @@ function ReportManagement() {
 
   const handleExportUniqueTableColumns = async () => {
     try {
-      setShowExportDropdown(false)
+      setShowExportDropdown(null)
       const response = await api.exportUniqueTableColumns()
       const url = window.URL.createObjectURL(response.data)
       const a = document.createElement('a')
@@ -878,9 +878,43 @@ function ReportManagement() {
     }
   }
 
+  const handleExportCustomTablesByReport = async (starredOnly) => {
+    try {
+      setShowExportDropdown(null)
+      const response = await api.exportCustomTablesByReport('both', starredOnly)
+      const url = window.URL.createObjectURL(response.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = starredOnly ? 'custom_tables_by_report_starred.csv' : 'custom_tables_by_report_all.csv'
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (err) {
+      setError('Error exporting custom tables by report: ' + err.message)
+    }
+  }
+
+  const handleExportUniqueCustomTables = async (starredOnly) => {
+    try {
+      setShowExportDropdown(null)
+      const response = await api.exportUniqueCustomTablesCsv('both', starredOnly)
+      const url = window.URL.createObjectURL(response.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = starredOnly ? 'unique_custom_tables_starred.csv' : 'unique_custom_tables_all.csv'
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (err) {
+      setError('Error exporting unique custom tables: ' + err.message)
+    }
+  }
+
   const handleExportPbiAllHtml = async () => {
     try {
-      setShowExportDropdown(false)
+      setShowExportDropdown(null)
       setExportingHtml(true)
       const response = await api.exportPbiAllHtml()
       const blob = new Blob([response.data], { type: 'text/html' })
@@ -901,7 +935,7 @@ function ReportManagement() {
 
   const handleExportPbiStarredHtml = async () => {
     try {
-      setShowExportDropdown(false)
+      setShowExportDropdown(null)
       setExportingHtml(true)
       const response = await api.exportPbiStarredHtml()
       const blob = new Blob([response.data], { type: 'text/html' })
@@ -924,7 +958,7 @@ function ReportManagement() {
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (showExportDropdown && !e.target.closest('.export-dropdown-container')) {
-        setShowExportDropdown(false)
+        setShowExportDropdown(null)
       }
     }
     document.addEventListener('click', handleClickOutside)
@@ -950,14 +984,17 @@ function ReportManagement() {
           </button>
         </div>
 
-        <div className="export-dropdown-container">
+        {/* Export Buttons - Right Aligned */}
+        <div className="export-buttons-group">
+          {/* Export Lineage Dropdown */}
+          <div className="export-dropdown-container">
           <button
             className="btn btn-secondary export-dropdown-btn"
-            onClick={(e) => { e.stopPropagation(); setShowExportDropdown(!showExportDropdown); }}
+            onClick={(e) => { e.stopPropagation(); setShowExportDropdown(showExportDropdown === 'lineage' ? null : 'lineage'); }}
           >
-            Export CSV ▼
+            Export Lineage ▼
           </button>
-          {showExportDropdown && (
+          {showExportDropdown === 'lineage' && (
             <div className="export-dropdown-menu">
               <div className="export-section-label">SSRS Reports</div>
               <button onClick={() => handleUnifiedExport('ssrs')}>
@@ -972,21 +1009,21 @@ function ReportManagement() {
               <hr />
               <div className="export-section-label">Power BI Reports</div>
               <button onClick={handleExportAllPbiCsv} disabled={pbiStatus.reportCount === 0}>
-                All Power BI CSV ({pbiStatus.reportCount})
+                All Power BI ({pbiStatus.reportCount})
               </button>
               <button onClick={handleExportStarredPbiCsv} disabled={pbiStarredCount === 0}>
-                Starred Power BI CSV ({pbiStarredCount})
+                Starred Power BI ({pbiStarredCount})
               </button>
               <button onClick={handleExportPbiAllHtml} disabled={exportingHtml || pbiStatus.reportCount === 0}>
-                {exportingHtml ? 'Exporting...' : `All Power BI HTML (${pbiStatus.reportCount})`}
+                {exportingHtml ? 'Exporting...' : `All Power BI HTML`}
               </button>
               <button onClick={handleExportPbiStarredHtml} disabled={exportingHtml || pbiStarredCount === 0}>
-                {exportingHtml ? 'Exporting...' : `Starred Power BI HTML (${pbiStarredCount})`}
+                {exportingHtml ? 'Exporting...' : `Starred Power BI HTML`}
               </button>
               <hr />
-              <div className="export-section-label">Combined</div>
+              <div className="export-section-label">Combined (SSRS + PBI)</div>
               <button onClick={() => handleUnifiedExport('both')}>
-                All Reports (SSRS + PBI)
+                All Reports
               </button>
               <button onClick={handleExportAllStarredCsv} disabled={starredCount + linkedStarredCount + pbiStarredCount === 0}>
                 All Starred ({starredCount + linkedStarredCount} SSRS, {pbiStarredCount} PBI)
@@ -994,22 +1031,59 @@ function ReportManagement() {
               <button onClick={handleExportAllHtml} disabled={exportingHtml || (statusCounts.COMPLETED || 0) === 0}>
                 {exportingHtml ? 'Exporting...' : 'All SSRS HTML'}
               </button>
-              <hr />
-              <div className="export-section-label">Custom Tables</div>
-              <button onClick={handleExportCustomTablesFromStarred} disabled={starredCount + linkedStarredCount === 0}>
-                Custom Tables from Starred
+            </div>
+          )}
+        </div>
+
+        {/* Export Custom Tables Dropdown */}
+        <div className="export-dropdown-container">
+          <button
+            className="btn btn-secondary export-dropdown-btn"
+            onClick={(e) => { e.stopPropagation(); setShowExportDropdown(showExportDropdown === 'custom' ? null : 'custom'); }}
+          >
+            Export Custom Tables ▼
+          </button>
+          {showExportDropdown === 'custom' && (
+            <div className="export-dropdown-menu">
+              <div className="export-section-label">Tables ending with "+"</div>
+              <button onClick={() => handleExportCustomTablesByReport(false)}>
+                By Report (All)
               </button>
-              <hr />
-              <div className="export-section-label">Table Columns (Starred)</div>
-              <button onClick={handleExportReportTableMapping} disabled={starredCount + linkedStarredCount + pbiStarredCount === 0}>
+              <button onClick={() => handleExportCustomTablesByReport(true)} disabled={starredCount + linkedStarredCount + pbiStarredCount === 0}>
+                By Report (Starred)
+              </button>
+              <button onClick={() => handleExportUniqueCustomTables(false)}>
+                Unique Tables (All)
+              </button>
+              <button onClick={() => handleExportUniqueCustomTables(true)} disabled={starredCount + linkedStarredCount + pbiStarredCount === 0}>
+                Unique Tables (Starred)
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Export Table Columns Dropdown */}
+        <div className="export-dropdown-container">
+          <button
+            className="btn btn-secondary export-dropdown-btn"
+            onClick={(e) => { e.stopPropagation(); setShowExportDropdown(showExportDropdown === 'columns' ? null : 'columns'); }}
+            disabled={starredCount + linkedStarredCount + pbiStarredCount === 0}
+          >
+            Export Table Columns ▼
+          </button>
+          {showExportDropdown === 'columns' && (
+            <div className="export-dropdown-menu">
+              <div className="export-section-label">From Starred Reports</div>
+              <button onClick={handleExportReportTableMapping}>
                 Report-Table Mapping
               </button>
-              <button onClick={handleExportUniqueTableColumns} disabled={starredCount + linkedStarredCount + pbiStarredCount === 0}>
+              <button onClick={handleExportUniqueTableColumns}>
                 Unique Table Columns
               </button>
             </div>
           )}
         </div>
+        </div> {/* End export-buttons-group */}
       </div>
 
       {error && <div className="error-message">{error}</div>}
@@ -1125,19 +1199,19 @@ function ReportManagement() {
                 <button onClick={handleScan} disabled={loading} className="btn">Scan</button>
                 <button
                   onClick={handleRunStarred}
-                  disabled={loading || isProcessing || starredCount === 0}
+                  disabled={loading || isProcessing || (starredCount + linkedStarredCount) === 0}
                   className="btn btn-warning"
                 >
-                  Run Starred ({starredCount})
+                  Run Starred ({starredCount + linkedStarredCount})
                 </button>
                 <button
                   onClick={handleRunAll}
                   disabled={loading || isProcessing || filteredFiles.length === 0}
                   className="btn btn-primary"
                 >
-                  {filteredFiles.length === files.length
+                  {combinedResults.length === files.length + allLinkedReports.length
                     ? `Run All (${files.length})`
-                    : `Run Filtered (${filteredFiles.length})`}
+                    : `Run Filtered (${combinedResults.length})`}
                 </button>
               </div>
             </div>
