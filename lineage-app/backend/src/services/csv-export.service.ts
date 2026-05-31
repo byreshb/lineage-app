@@ -296,8 +296,9 @@ export class CsvExportService {
           // Combine proc paths
           const allProcs = [...chain.procs, ...bt.procPath];
           // Combine view paths - viewEdge.targetName is the first view, then bt.viewPath has nested views
-          // Look up view to get schema for proper formatting
-          const firstView = viewEdge.targetId > 0 ? this.repos.view.findById(viewEdge.targetId) : this.repos.view.findByName(viewEdge.targetName);
+          // Look up view to get schema for proper formatting - try by ID first, then fall back to name
+          let firstView = viewEdge.targetId > 0 ? this.repos.view.findById(viewEdge.targetId) : null;
+          if (!firstView) firstView = this.repos.view.findByName(viewEdge.targetName);
           const firstViewName = firstView ? this.formatNameWithSchema(firstView.viewName, firstView.schemaName) : viewEdge.targetName;
           const allViews = [firstViewName, ...bt.viewPath];
 
@@ -338,8 +339,9 @@ export class CsvExportService {
 
         const { tables, procPath } = this.findTablesFromProc(procEdge.targetName, new Set());
 
-        // Look up proc to get schema for proper formatting
-        const firstProc = procEdge.targetId > 0 ? this.repos.storedProc.findById(procEdge.targetId) : this.repos.storedProc.findByName(procEdge.targetName);
+        // Look up proc to get schema for proper formatting - try by ID first, then fall back to name
+        let firstProc = procEdge.targetId > 0 ? this.repos.storedProc.findById(procEdge.targetId) : null;
+        if (!firstProc) firstProc = this.repos.storedProc.findByName(procEdge.targetName);
         const firstProcName = firstProc ? this.formatNameWithSchema(firstProc.procName, firstProc.schemaName) : procEdge.targetName;
 
         for (const bt of tables) {
@@ -631,13 +633,17 @@ export class CsvExportService {
       visited.add(key);
 
       if (currentType === 'VIEW') {
-        // Look up view to get schema
-        const view = currentId > 0 ? this.repos.view.findById(currentId) : this.repos.view.findByName(currentName);
+        // Look up view to get schema - try by ID first, then fall back to name
+        // (IDs can become stale after metadata reload)
+        let view = currentId > 0 ? this.repos.view.findById(currentId) : null;
+        if (!view) view = this.repos.view.findByName(currentName);
         const displayName = view ? this.formatNameWithSchema(view.viewName, view.schemaName) : currentName;
         viewList.unshift(displayName);
       } else if (currentType === 'PROC') {
-        // Look up proc to get schema
-        const proc = currentId > 0 ? this.repos.storedProc.findById(currentId) : this.repos.storedProc.findByName(currentName);
+        // Look up proc to get schema - try by ID first, then fall back to name
+        // (IDs can become stale after metadata reload)
+        let proc = currentId > 0 ? this.repos.storedProc.findById(currentId) : null;
+        if (!proc) proc = this.repos.storedProc.findByName(currentName);
         const displayName = proc ? this.formatNameWithSchema(proc.procName, proc.schemaName) : currentName;
         procList.unshift(displayName);
       } else if (currentType === 'DATASET') {

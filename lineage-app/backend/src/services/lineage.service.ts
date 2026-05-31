@@ -398,23 +398,24 @@ export class LineageService {
 
     const edges = this.repos.lineage.findByReportId(reportId);
     const nodesMap = new Map<string, LineageNodeDto>();
-    const procIds = new Set<number>();
-    const viewIds = new Set<number>();
+    // Store both ID and name so we can fall back to name lookup if ID is stale after metadata reload
+    const procEntries = new Map<number, string>();  // id -> name
+    const viewEntries = new Map<number, string>();  // id -> name
 
     for (const edge of edges) {
       const sourceKey = this.buildNodeKey(edge.sourceType, edge.sourceId, edge.sourceName);
       if (!nodesMap.has(sourceKey)) {
         nodesMap.set(sourceKey, this.buildNode(edge.sourceType, edge.sourceId, edge.sourceName));
       }
-      if (edge.sourceType === 'PROC' && edge.sourceId > 0) procIds.add(edge.sourceId);
-      if (edge.sourceType === 'VIEW' && edge.sourceId > 0) viewIds.add(edge.sourceId);
+      if (edge.sourceType === 'PROC' && edge.sourceId > 0) procEntries.set(edge.sourceId, edge.sourceName || '');
+      if (edge.sourceType === 'VIEW' && edge.sourceId > 0) viewEntries.set(edge.sourceId, edge.sourceName || '');
 
       const targetKey = this.buildNodeKey(edge.targetType, edge.targetId, edge.targetName);
       if (!nodesMap.has(targetKey)) {
         nodesMap.set(targetKey, this.buildNode(edge.targetType, edge.targetId, edge.targetName));
       }
-      if (edge.targetType === 'PROC' && edge.targetId > 0) procIds.add(edge.targetId);
-      if (edge.targetType === 'VIEW' && edge.targetId > 0) viewIds.add(edge.targetId);
+      if (edge.targetType === 'PROC' && edge.targetId > 0) procEntries.set(edge.targetId, edge.targetName || '');
+      if (edge.targetType === 'VIEW' && edge.targetId > 0) viewEntries.set(edge.targetId, edge.targetName || '');
     }
 
     const edgeDtos: LineageEdgeDto[] = edges.map(e => ({
@@ -441,8 +442,10 @@ export class LineageService {
       }
     }
 
-    for (const procId of procIds) {
-      const proc = this.repos.storedProc.findById(procId);
+    for (const [procId, procName] of procEntries) {
+      // Try by ID first, fall back to name (IDs can become stale after metadata reload)
+      let proc = this.repos.storedProc.findById(procId);
+      if (!proc && procName) proc = this.repos.storedProc.findByName(procName);
       if (proc?.definition) {
         for (const w of detectDynamicSqlWarnings(proc.definition)) {
           const key = `PROC:${proc.procName}:${w}`;
@@ -454,8 +457,10 @@ export class LineageService {
       }
     }
 
-    for (const viewId of viewIds) {
-      const view = this.repos.view.findById(viewId);
+    for (const [viewId, viewName] of viewEntries) {
+      // Try by ID first, fall back to name (IDs can become stale after metadata reload)
+      let view = this.repos.view.findById(viewId);
+      if (!view && viewName) view = this.repos.view.findByName(viewName);
       if (view?.definition) {
         for (const w of detectDynamicSqlWarnings(view.definition)) {
           const key = `VIEW:${view.viewName}:${w}`;
@@ -929,23 +934,23 @@ export class LineageService {
       visited.add(key);
 
       if (currentType === 'VIEW') {
-        // Look up schema for view
+        // Look up schema for view - try by ID first, fall back to name
+        // (IDs can become stale after metadata reload)
         let viewName = currentName;
-        if (currentId && currentId > 0) {
-          const view = this.repos.view.findById(currentId);
-          if (view && view.schemaName) {
-            viewName = `${view.schemaName}.${view.viewName}`;
-          }
+        let view = currentId && currentId > 0 ? this.repos.view.findById(currentId) : null;
+        if (!view && currentName) view = this.repos.view.findByName(currentName);
+        if (view && view.schemaName) {
+          viewName = `${view.schemaName}.${view.viewName}`;
         }
         chain.views.unshift(viewName);
       } else if (currentType === 'PROC') {
-        // Look up schema for proc
+        // Look up schema for proc - try by ID first, fall back to name
+        // (IDs can become stale after metadata reload)
         let procName = currentName;
-        if (currentId && currentId > 0) {
-          const proc = this.repos.storedProc.findById(currentId);
-          if (proc && proc.schemaName) {
-            procName = `${proc.schemaName}.${proc.procName}`;
-          }
+        let proc = currentId && currentId > 0 ? this.repos.storedProc.findById(currentId) : null;
+        if (!proc && currentName) proc = this.repos.storedProc.findByName(currentName);
+        if (proc && proc.schemaName) {
+          procName = `${proc.schemaName}.${proc.procName}`;
         }
         chain.procs.unshift(procName);
       } else if (currentType === 'DATASET') {

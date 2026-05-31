@@ -48,9 +48,10 @@ export class HtmlExportService {
       sharedDatasetDefinitions: {},
     };
 
-    const procIds = new Set<number>();
-    const viewIds = new Set<number>();
-    const sharedDatasetIds = new Set<number>();
+    // Store both ID and name so we can fall back to name lookup if ID is stale after metadata reload
+    const procEntries = new Map<number, string>();  // id -> name
+    const viewEntries = new Map<number, string>();  // id -> name
+    const sharedDatasetEntries = new Map<number, string>();  // id -> name
 
     const lineage = this.lineageService.getLineageGraph(report.id!);
 
@@ -72,39 +73,42 @@ export class HtmlExportService {
       executions: executionData,
     });
 
-    // Collect proc/view/shared dataset IDs for definitions
+    // Collect proc/view/shared dataset IDs and names for definitions
     for (const node of lineage.nodes) {
       if (node.type === 'PROC' && node.id) {
         const match = node.id.match(/PROC_(\d+)/);
-        if (match) procIds.add(parseInt(match[1], 10));
+        if (match) procEntries.set(parseInt(match[1], 10), node.name || '');
       }
       if (node.type === 'VIEW' && node.id) {
         const match = node.id.match(/VIEW_(\d+)/);
-        if (match) viewIds.add(parseInt(match[1], 10));
+        if (match) viewEntries.set(parseInt(match[1], 10), node.name || '');
       }
       if (node.type === 'SHARED_DATASET' && node.id) {
         const match = node.id.match(/SHARED_DATASET_(\d+)/);
-        if (match) sharedDatasetIds.add(parseInt(match[1], 10));
+        if (match) sharedDatasetEntries.set(parseInt(match[1], 10), node.name || '');
       }
     }
 
-    // 3. Fetch definitions
-    for (const procId of procIds) {
-      const proc = this.repos.storedProc.findById(procId);
+    // 3. Fetch definitions - try by ID first, fall back to name (IDs can become stale after metadata reload)
+    for (const [procId, procName] of procEntries) {
+      let proc = this.repos.storedProc.findById(procId);
+      if (!proc && procName) proc = this.repos.storedProc.findByName(procName);
       if (proc && proc.definition) {
         exportData.procDefinitions[`PROC_${procId}`] = proc.definition;
       }
     }
 
-    for (const viewId of viewIds) {
-      const view = this.repos.view.findById(viewId);
+    for (const [viewId, viewName] of viewEntries) {
+      let view = this.repos.view.findById(viewId);
+      if (!view && viewName) view = this.repos.view.findByName(viewName);
       if (view && view.definition) {
         exportData.viewDefinitions[`VIEW_${viewId}`] = view.definition;
       }
     }
 
-    for (const sdId of sharedDatasetIds) {
-      const sd = this.repos.sharedDataset.findById(sdId);
+    for (const [sdId, sdName] of sharedDatasetEntries) {
+      let sd = this.repos.sharedDataset.findById(sdId);
+      if (!sd && sdName) sd = this.repos.sharedDataset.findByName(sdName);
       if (sd && sd.commandText) {
         exportData.sharedDatasetDefinitions[`SHARED_DATASET_${sdId}`] = sd.commandText;
       }
@@ -126,9 +130,10 @@ export class HtmlExportService {
       sharedDatasetDefinitions: {},
     };
 
-    const procIds = new Set<number>();
-    const viewIds = new Set<number>();
-    const sharedDatasetIds = new Set<number>();
+    // Store both ID and name so we can fall back to name lookup if ID is stale after metadata reload
+    const procEntries = new Map<number, string>();  // id -> name
+    const viewEntries = new Map<number, string>();  // id -> name
+    const sharedDatasetEntries = new Map<number, string>();  // id -> name
 
     for (const report of reports) {
       try {
@@ -152,19 +157,19 @@ export class HtmlExportService {
           executions: executionData,
         });
 
-        // Collect proc/view/shared dataset IDs for definitions
+        // Collect proc/view/shared dataset IDs and names for definitions
         for (const node of lineage.nodes) {
           if (node.type === 'PROC' && node.id) {
             const match = node.id.match(/PROC_(\d+)/);
-            if (match) procIds.add(parseInt(match[1], 10));
+            if (match) procEntries.set(parseInt(match[1], 10), node.name || '');
           }
           if (node.type === 'VIEW' && node.id) {
             const match = node.id.match(/VIEW_(\d+)/);
-            if (match) viewIds.add(parseInt(match[1], 10));
+            if (match) viewEntries.set(parseInt(match[1], 10), node.name || '');
           }
           if (node.type === 'SHARED_DATASET' && node.id) {
             const match = node.id.match(/SHARED_DATASET_(\d+)/);
-            if (match) sharedDatasetIds.add(parseInt(match[1], 10));
+            if (match) sharedDatasetEntries.set(parseInt(match[1], 10), node.name || '');
           }
         }
       } catch (err) {
@@ -172,23 +177,26 @@ export class HtmlExportService {
       }
     }
 
-    // 3. Fetch definitions
-    for (const procId of procIds) {
-      const proc = this.repos.storedProc.findById(procId);
+    // 3. Fetch definitions - try by ID first, fall back to name (IDs can become stale after metadata reload)
+    for (const [procId, procName] of procEntries) {
+      let proc = this.repos.storedProc.findById(procId);
+      if (!proc && procName) proc = this.repos.storedProc.findByName(procName);
       if (proc && proc.definition) {
         exportData.procDefinitions[`PROC_${procId}`] = proc.definition;
       }
     }
 
-    for (const viewId of viewIds) {
-      const view = this.repos.view.findById(viewId);
+    for (const [viewId, viewName] of viewEntries) {
+      let view = this.repos.view.findById(viewId);
+      if (!view && viewName) view = this.repos.view.findByName(viewName);
       if (view && view.definition) {
         exportData.viewDefinitions[`VIEW_${viewId}`] = view.definition;
       }
     }
 
-    for (const sdId of sharedDatasetIds) {
-      const sd = this.repos.sharedDataset.findById(sdId);
+    for (const [sdId, sdName] of sharedDatasetEntries) {
+      let sd = this.repos.sharedDataset.findById(sdId);
+      if (!sd && sdName) sd = this.repos.sharedDataset.findByName(sdName);
       if (sd && sd.commandText) {
         exportData.sharedDatasetDefinitions[`SHARED_DATASET_${sdId}`] = sd.commandText;
       }
@@ -216,9 +224,10 @@ export class HtmlExportService {
       sharedDatasetDefinitions: {},
     };
 
-    const procIds = new Set<number>();
-    const viewIds = new Set<number>();
-    const sharedDatasetIds = new Set<number>();
+    // Store both ID and name so we can fall back to name lookup if ID is stale after metadata reload
+    const procEntries = new Map<number, string>();  // id -> name
+    const viewEntries = new Map<number, string>();  // id -> name
+    const sharedDatasetEntries = new Map<number, string>();  // id -> name
 
     for (const report of reports) {
       if (!report) continue;
@@ -243,19 +252,19 @@ export class HtmlExportService {
           executions: executionData,
         });
 
-        // Collect proc/view/shared dataset IDs for definitions
+        // Collect proc/view/shared dataset IDs and names for definitions
         for (const node of lineage.nodes) {
           if (node.type === 'PROC' && node.id) {
             const match = node.id.match(/PROC_(\d+)/);
-            if (match) procIds.add(parseInt(match[1], 10));
+            if (match) procEntries.set(parseInt(match[1], 10), node.name || '');
           }
           if (node.type === 'VIEW' && node.id) {
             const match = node.id.match(/VIEW_(\d+)/);
-            if (match) viewIds.add(parseInt(match[1], 10));
+            if (match) viewEntries.set(parseInt(match[1], 10), node.name || '');
           }
           if (node.type === 'SHARED_DATASET' && node.id) {
             const match = node.id.match(/SHARED_DATASET_(\d+)/);
-            if (match) sharedDatasetIds.add(parseInt(match[1], 10));
+            if (match) sharedDatasetEntries.set(parseInt(match[1], 10), node.name || '');
           }
         }
       } catch (err) {
@@ -263,23 +272,26 @@ export class HtmlExportService {
       }
     }
 
-    // 3. Fetch definitions
-    for (const procId of procIds) {
-      const proc = this.repos.storedProc.findById(procId);
+    // 3. Fetch definitions - try by ID first, fall back to name (IDs can become stale after metadata reload)
+    for (const [procId, procName] of procEntries) {
+      let proc = this.repos.storedProc.findById(procId);
+      if (!proc && procName) proc = this.repos.storedProc.findByName(procName);
       if (proc && proc.definition) {
         exportData.procDefinitions[`PROC_${procId}`] = proc.definition;
       }
     }
 
-    for (const viewId of viewIds) {
-      const view = this.repos.view.findById(viewId);
+    for (const [viewId, viewName] of viewEntries) {
+      let view = this.repos.view.findById(viewId);
+      if (!view && viewName) view = this.repos.view.findByName(viewName);
       if (view && view.definition) {
         exportData.viewDefinitions[`VIEW_${viewId}`] = view.definition;
       }
     }
 
-    for (const sdId of sharedDatasetIds) {
-      const sd = this.repos.sharedDataset.findById(sdId);
+    for (const [sdId, sdName] of sharedDatasetEntries) {
+      let sd = this.repos.sharedDataset.findById(sdId);
+      if (!sd && sdName) sd = this.repos.sharedDataset.findByName(sdName);
       if (sd && sd.commandText) {
         exportData.sharedDatasetDefinitions[`SHARED_DATASET_${sdId}`] = sd.commandText;
       }
@@ -319,8 +331,9 @@ export class HtmlExportService {
       sharedDatasetDefinitions: {},
     };
 
-    const procIds = new Set<number>();
-    const viewIds = new Set<number>();
+    // Store both ID and name so we can fall back to name lookup if ID is stale after metadata reload
+    const procEntries = new Map<number, string>();  // id -> name
+    const viewEntries = new Map<number, string>();  // id -> name
 
     for (const report of pbiReports) {
       try {
@@ -360,15 +373,15 @@ export class HtmlExportService {
           executions: [], // PBI doesn't have execution history
         });
 
-        // Collect proc/view IDs for definitions
+        // Collect proc/view IDs and names for definitions
         for (const node of lineage.nodes) {
           if (node.type === 'PROC' && node.id) {
             const match = node.id.match(/PROC_(\d+)/);
-            if (match) procIds.add(parseInt(match[1], 10));
+            if (match) procEntries.set(parseInt(match[1], 10), node.name || '');
           }
           if (node.type === 'VIEW' && node.id) {
             const match = node.id.match(/VIEW_(\d+)/);
-            if (match) viewIds.add(parseInt(match[1], 10));
+            if (match) viewEntries.set(parseInt(match[1], 10), node.name || '');
           }
         }
       } catch (err) {
@@ -376,16 +389,18 @@ export class HtmlExportService {
       }
     }
 
-    // Fetch definitions
-    for (const procId of procIds) {
-      const proc = this.repos.storedProc.findById(procId);
+    // Fetch definitions - try by ID first, fall back to name (IDs can become stale after metadata reload)
+    for (const [procId, procName] of procEntries) {
+      let proc = this.repos.storedProc.findById(procId);
+      if (!proc && procName) proc = this.repos.storedProc.findByName(procName);
       if (proc && proc.definition) {
         exportData.procDefinitions[`PROC_${procId}`] = proc.definition;
       }
     }
 
-    for (const viewId of viewIds) {
-      const view = this.repos.view.findById(viewId);
+    for (const [viewId, viewName] of viewEntries) {
+      let view = this.repos.view.findById(viewId);
+      if (!view && viewName) view = this.repos.view.findByName(viewName);
       if (view && view.definition) {
         exportData.viewDefinitions[`VIEW_${viewId}`] = view.definition;
       }
