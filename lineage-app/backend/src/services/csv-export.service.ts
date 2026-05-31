@@ -991,31 +991,34 @@ export class CsvExportService {
   /**
    * Get custom tables from an SSRS report's lineage (tables ending with "+")
    */
-  private getCustomTablesFromReport(reportId: number): Array<{ tableName: string }> {
+  private getCustomTablesFromReport(reportId: number): Array<{ schema: string; tableName: string }> {
     const edges = this.repos.lineage.findByReportId(reportId);
-    const tables: Array<{ tableName: string }> = [];
+    const tables: Array<{ schema: string; tableName: string }> = [];
     const seen = new Set<string>();
 
     // Direct TABLE edges
     const tableEdges = edges.filter((e) => e.targetType === 'TABLE' || e.targetType === 'TABLE_NOT_FOUND');
     for (const edge of tableEdges) {
       let tableName = '';
+      let schema = '';
       if (edge.targetId > 0) {
         const table = this.repos.table.findById(edge.targetId);
         if (table) {
           tableName = table.tableName;
+          schema = table.schemaName || '';
         }
       } else if (edge.targetName) {
         // Parse table name from path
         const parsed = this.parseExternalTablePath(edge.targetName);
         tableName = parsed.tableName;
+        schema = parsed.schema || '';
       }
 
       if (tableName && this.isCustomTable(tableName)) {
-        const key = tableName.toLowerCase();
+        const key = `${schema}.${tableName}`.toLowerCase();
         if (!seen.has(key)) {
           seen.add(key);
-          tables.push({ tableName });
+          tables.push({ schema, tableName });
         }
       }
     }
@@ -1027,10 +1030,10 @@ export class CsvExportService {
       const baseTables = this.findAllBaseTables(viewEdge.targetName, [], [], new Set());
       for (const bt of baseTables) {
         if (this.isCustomTable(bt.tableName)) {
-          const key = bt.tableName.toLowerCase();
+          const key = `${bt.schema}.${bt.tableName}`.toLowerCase();
           if (!seen.has(key)) {
             seen.add(key);
-            tables.push({ tableName: bt.tableName });
+            tables.push({ schema: bt.schema || '', tableName: bt.tableName });
           }
         }
       }
@@ -1043,10 +1046,10 @@ export class CsvExportService {
       const { tables: procTables } = this.findTablesFromProc(procEdge.targetName, new Set());
       for (const bt of procTables) {
         if (this.isCustomTable(bt.tableName)) {
-          const key = bt.tableName.toLowerCase();
+          const key = `${bt.schema}.${bt.tableName}`.toLowerCase();
           if (!seen.has(key)) {
             seen.add(key);
-            tables.push({ tableName: bt.tableName });
+            tables.push({ schema: bt.schema || '', tableName: bt.tableName });
           }
         }
       }
@@ -1058,9 +1061,9 @@ export class CsvExportService {
   /**
    * Get custom tables from a Power BI report (tables ending with "+")
    */
-  private getCustomTablesFromPbiReport(reportId: number): Array<{ tableName: string }> {
+  private getCustomTablesFromPbiReport(reportId: number): Array<{ schema: string; tableName: string }> {
     const pbiTables = this.repos.pbiTable.findByReportId(reportId);
-    const tables: Array<{ tableName: string }> = [];
+    const tables: Array<{ schema: string; tableName: string }> = [];
     const seen = new Set<string>();
 
     for (const pbiTable of pbiTables) {
@@ -1070,10 +1073,10 @@ export class CsvExportService {
       // Check if it's directly a table
       const directTable = this.repos.table.findByName(excelRef);
       if (directTable && this.isCustomTable(directTable.tableName)) {
-        const key = directTable.tableName.toLowerCase();
+        const key = `${directTable.schemaName}.${directTable.tableName}`.toLowerCase();
         if (!seen.has(key)) {
           seen.add(key);
-          tables.push({ tableName: directTable.tableName });
+          tables.push({ schema: directTable.schemaName || '', tableName: directTable.tableName });
         }
         continue;
       }
@@ -1084,10 +1087,10 @@ export class CsvExportService {
         const baseTables = this.findAllBaseTables(excelRef, [], [], new Set());
         for (const bt of baseTables) {
           if (this.isCustomTable(bt.tableName)) {
-            const key = bt.tableName.toLowerCase();
+            const key = `${bt.schema}.${bt.tableName}`.toLowerCase();
             if (!seen.has(key)) {
               seen.add(key);
-              tables.push({ tableName: bt.tableName });
+              tables.push({ schema: bt.schema || '', tableName: bt.tableName });
             }
           }
         }
@@ -1099,14 +1102,15 @@ export class CsvExportService {
 
   /**
    * Export unique custom tables by report as CSV
-   * Columns: Report Name, Custom Table, Type (SSRS/PowerBI), Report Path
+   * Columns: Report Name, Schema, Custom Table, Type (SSRS/PowerBI), Report Path
    */
   exportCustomTablesByReport(scope: 'SSRS' | 'PowerBI' | 'Both', starredOnly: boolean = false): string {
-    const header = ['Report Name', 'Custom Table', 'Type', 'Report Path'].join(',') + '\n';
+    const header = ['Report Name', 'Schema', 'Custom Table', 'Type', 'Report Path'].join(',') + '\n';
     let csv = header;
 
     const customTablesByReport: Array<{
       reportName: string;
+      schema: string;
       customTable: string;
       reportType: 'SSRS' | 'PowerBI';
       reportPath: string;
@@ -1124,6 +1128,7 @@ export class CsvExportService {
         for (const table of customTables) {
           customTablesByReport.push({
             reportName: report.reportName || report.fileName,
+            schema: table.schema,
             customTable: table.tableName,
             reportType: 'SSRS',
             reportPath: report.filePath || '',
@@ -1144,6 +1149,7 @@ export class CsvExportService {
         for (const table of customTables) {
           customTablesByReport.push({
             reportName: report.reportName,
+            schema: table.schema,
             customTable: table.tableName,
             reportType: 'PowerBI',
             reportPath: '',
@@ -1152,14 +1158,15 @@ export class CsvExportService {
       }
     }
 
-    // Deduplicate per report (same table can appear once per report)
+    // Deduplicate per report (same schema.table can appear once per report)
     const seenPerReport = new Set<string>();
     for (const row of customTablesByReport) {
-      const key = `${row.reportName.toLowerCase()}|${row.customTable.toLowerCase()}`;
+      const key = `${row.reportName.toLowerCase()}|${row.schema.toLowerCase()}|${row.customTable.toLowerCase()}`;
       if (!seenPerReport.has(key)) {
         seenPerReport.add(key);
         csv += [
           this.escapeCsv(row.reportName),
+          this.escapeCsv(row.schema),
           this.escapeCsv(row.customTable),
           row.reportType,
           this.escapeCsv(row.reportPath)
@@ -1171,14 +1178,14 @@ export class CsvExportService {
   }
 
   /**
-   * Export unique custom tables as CSV (just table names, no report info)
-   * Single column: Custom Table
+   * Export unique custom tables as CSV (schema and table names, no report info)
+   * Columns: Schema, Custom Table
    */
   exportUniqueCustomTables(scope: 'SSRS' | 'PowerBI' | 'Both', starredOnly: boolean = false): string {
-    const header = 'Custom Table\n';
+    const header = 'Schema,Custom Table\n';
     let csv = header;
 
-    const allCustomTables = new Set<string>();
+    const allCustomTables = new Map<string, { schema: string; tableName: string }>();
 
     // Process SSRS reports
     if (scope === 'SSRS' || scope === 'Both') {
@@ -1190,7 +1197,10 @@ export class CsvExportService {
       for (const report of reports) {
         const customTables = this.getCustomTablesFromReport(report.id!);
         for (const table of customTables) {
-          allCustomTables.add(table.tableName);
+          const key = `${table.schema}.${table.tableName}`.toLowerCase();
+          if (!allCustomTables.has(key)) {
+            allCustomTables.set(key, { schema: table.schema, tableName: table.tableName });
+          }
         }
       }
     }
@@ -1205,15 +1215,23 @@ export class CsvExportService {
       for (const report of reports) {
         const customTables = this.getCustomTablesFromPbiReport(report.id!);
         for (const table of customTables) {
-          allCustomTables.add(table.tableName);
+          const key = `${table.schema}.${table.tableName}`.toLowerCase();
+          if (!allCustomTables.has(key)) {
+            allCustomTables.set(key, { schema: table.schema, tableName: table.tableName });
+          }
         }
       }
     }
 
-    // Sort and output
-    const sortedTables = Array.from(allCustomTables).sort();
-    for (const tableName of sortedTables) {
-      csv += this.escapeCsv(tableName) + '\n';
+    // Sort by schema.tableName and output
+    const sortedTables = Array.from(allCustomTables.values()).sort((a, b) => {
+      const aKey = `${a.schema}.${a.tableName}`.toLowerCase();
+      const bKey = `${b.schema}.${b.tableName}`.toLowerCase();
+      return aKey.localeCompare(bKey);
+    });
+
+    for (const table of sortedTables) {
+      csv += `${this.escapeCsv(table.schema)},${this.escapeCsv(table.tableName)}\n`;
     }
 
     return csv;

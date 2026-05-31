@@ -2206,6 +2206,26 @@ tbody tr:hover {
   border-top: 1px solid #eee;
 }
 
+.export-dropdown-menu-wide {
+  min-width: 280px;
+}
+
+.export-dropdown-menu button .export-item-name {
+  display: block;
+  font-weight: 500;
+}
+
+.export-dropdown-menu button .export-item-desc {
+  display: block;
+  font-size: 0.75rem;
+  color: #666;
+  margin-top: 2px;
+}
+
+.export-dropdown-menu button:disabled .export-item-desc {
+  color: #aaa;
+}
+
 /* Source Selector */
 .source-selector {
   display: flex;

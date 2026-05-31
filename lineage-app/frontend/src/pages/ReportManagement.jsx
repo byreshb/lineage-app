@@ -1044,19 +1044,23 @@ function ReportManagement() {
             Export Custom Tables ▼
           </button>
           {showExportDropdown === 'custom' && (
-            <div className="export-dropdown-menu">
-              <div className="export-section-label">Tables ending with "+"</div>
-              <button onClick={() => handleExportCustomTablesByReport(false)}>
-                By Report (All)
+            <div className="export-dropdown-menu export-dropdown-menu-wide">
+              <div className="export-section-label">Custom Tables (ending with "+")</div>
+              <button onClick={() => handleExportCustomTablesByReport(false)} title="Report Name, Custom Table, Type, Path - one row per report-table pair">
+                <span className="export-item-name">By Report (All)</span>
+                <span className="export-item-desc">Report + table pairs</span>
               </button>
-              <button onClick={() => handleExportCustomTablesByReport(true)} disabled={starredCount + linkedStarredCount + pbiStarredCount === 0}>
-                By Report (Starred)
+              <button onClick={() => handleExportCustomTablesByReport(true)} disabled={starredCount + linkedStarredCount + pbiStarredCount === 0} title="Same as above but only starred reports">
+                <span className="export-item-name">By Report (Starred)</span>
+                <span className="export-item-desc">Report + table pairs</span>
               </button>
-              <button onClick={() => handleExportUniqueCustomTables(false)}>
-                Unique Tables (All)
+              <button onClick={() => handleExportUniqueCustomTables(false)} title="Just unique table names - no report info, no duplicates">
+                <span className="export-item-name">Unique Tables (All)</span>
+                <span className="export-item-desc">Table names only, deduplicated</span>
               </button>
-              <button onClick={() => handleExportUniqueCustomTables(true)} disabled={starredCount + linkedStarredCount + pbiStarredCount === 0}>
-                Unique Tables (Starred)
+              <button onClick={() => handleExportUniqueCustomTables(true)} disabled={starredCount + linkedStarredCount + pbiStarredCount === 0} title="Same as above but only from starred reports">
+                <span className="export-item-name">Unique Tables (Starred)</span>
+                <span className="export-item-desc">Table names only, deduplicated</span>
               </button>
             </div>
           )}
@@ -1072,13 +1076,15 @@ function ReportManagement() {
             Export Table Columns ▼
           </button>
           {showExportDropdown === 'columns' && (
-            <div className="export-dropdown-menu">
-              <div className="export-section-label">From Starred Reports</div>
-              <button onClick={handleExportReportTableMapping}>
-                Report-Table Mapping
+            <div className="export-dropdown-menu export-dropdown-menu-wide">
+              <div className="export-section-label">From Starred Reports (ALL tables)</div>
+              <button onClick={handleExportReportTableMapping} title="Which tables each starred report uses - one row per report-table pair">
+                <span className="export-item-name">Report-Table Mapping</span>
+                <span className="export-item-desc">Report + table pairs (all tables)</span>
               </button>
-              <button onClick={handleExportUniqueTableColumns}>
-                Unique Table Columns
+              <button onClick={handleExportUniqueTableColumns} title="Column details for unique tables - compare SQL2 vs New Syspro">
+                <span className="export-item-name">Unique Table Columns</span>
+                <span className="export-item-desc">Column comparison SQL2 vs TRN1</span>
               </button>
             </div>
           )}
