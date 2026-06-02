@@ -241,6 +241,30 @@ npm run build    # Compile TypeScript
 ### After making frontend changes:
 - Vite hot-reloads automatically, no rebuild needed
 
+### Running API Regression Tests (IMPORTANT!)
+
+**Always run the API tests after making any backend code changes to verify nothing is broken:**
+
+```bash
+cd backend
+npm run test:api
+```
+
+This runs a comprehensive test suite that validates:
+- All export endpoints return HTTP 200
+- Starred reports count = 27 (5 SSRS templates + 14 linked + 8 Power BI)
+- All exports have consistent data (100 unique tables)
+- Table mapping, lineage CSV, and unique columns exports match
+- SSRS + PBI = Both (unified export consistency)
+- File identity check (export-csv === export-all-csv)
+
+**Expected output:**
+```
+✅ ALL TESTS PASSED (27/27)
+```
+
+**If any test fails, DO NOT commit the changes until the issue is resolved.**
+
 ### SQL Queries
 All SQL queries used to generate CSV files are in the `SQL/` folder. **Run these on D300SQLDW01 (SQL2):**
 - `all_stored_procs.sql` - Stored procedures from ALL databases (dynamic query)

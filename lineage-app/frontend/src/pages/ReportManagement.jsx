@@ -848,16 +848,21 @@ function ReportManagement() {
     try {
       setShowExportDropdown(null)
       const response = await api.exportReportTableMapping()
+      if (!response.data || response.data.size === 0) {
+        setError('No data returned from export')
+        return
+      }
       const url = window.URL.createObjectURL(response.data)
       const a = document.createElement('a')
       a.href = url
       a.download = 'report_table_mapping.csv'
       document.body.appendChild(a)
       a.click()
-      window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
+      // Delay revoking URL to ensure download starts
+      setTimeout(() => window.URL.revokeObjectURL(url), 100)
     } catch (err) {
-      setError('Error exporting report-table mapping: ' + err.message)
+      setError('Error exporting report-table mapping: ' + (err.message || 'Unknown error'))
     }
   }
 
@@ -865,16 +870,21 @@ function ReportManagement() {
     try {
       setShowExportDropdown(null)
       const response = await api.exportUniqueTableColumns()
+      if (!response.data || response.data.size === 0) {
+        setError('No data returned from export')
+        return
+      }
       const url = window.URL.createObjectURL(response.data)
       const a = document.createElement('a')
       a.href = url
       a.download = 'unique_table_columns.csv'
       document.body.appendChild(a)
       a.click()
-      window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
+      // Delay revoking URL to ensure download starts
+      setTimeout(() => window.URL.revokeObjectURL(url), 100)
     } catch (err) {
-      setError('Error exporting table columns: ' + err.message)
+      setError('Error exporting table columns: ' + (err.message || 'Unknown error'))
     }
   }
 
@@ -1073,17 +1083,17 @@ function ReportManagement() {
             onClick={(e) => { e.stopPropagation(); setShowExportDropdown(showExportDropdown === 'columns' ? null : 'columns'); }}
             disabled={starredCount + linkedStarredCount + pbiStarredCount === 0}
           >
-            Export Table Columns ▼
+            Export Starred Table Columns ({starredCount + linkedStarredCount + pbiStarredCount}) ▼
           </button>
           {showExportDropdown === 'columns' && (
             <div className="export-dropdown-menu export-dropdown-menu-wide">
-              <div className="export-section-label">From Starred Reports (ALL tables)</div>
+              <div className="export-section-label">From {starredCount + linkedStarredCount + pbiStarredCount} Starred Reports (ALL tables)</div>
               <button onClick={handleExportReportTableMapping} title="Which tables each starred report uses - one row per report-table pair">
-                <span className="export-item-name">Report-Table Mapping</span>
-                <span className="export-item-desc">Report + table pairs (all tables)</span>
+                <span className="export-item-name">Starred Report-Table Mapping</span>
+                <span className="export-item-desc">Report + table pairs from starred reports</span>
               </button>
               <button onClick={handleExportUniqueTableColumns} title="Column details for unique tables - compare SQL2 vs New Syspro">
-                <span className="export-item-name">Unique Table Columns</span>
+                <span className="export-item-name">Starred Unique Table Columns</span>
                 <span className="export-item-desc">Column comparison SQL2 vs TRN1</span>
               </button>
             </div>

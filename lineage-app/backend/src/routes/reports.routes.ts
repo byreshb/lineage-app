@@ -60,35 +60,9 @@ export async function reportsRoutes(app: FastifyInstance, services: Services, re
   });
 
   // GET /api/reports/starred/export-csv - Export only starred reports to CSV
+  // Uses the same unified export as export-all-csv for consistency
   app.get('/starred/export-csv', async (request, reply) => {
-    // Get starred template reports
-    const starredReports = repos.report.findStarred();
-    const completedStarred = starredReports.filter(r => r.status === 'COMPLETED');
-    const reportIds = new Set(completedStarred.map(r => r.id!));
-
-    // Get starred linked reports and find their templates
-    const starredLinked = repos.linkedReport.findStarred();
-    for (const linked of starredLinked) {
-      // Find the template report by matching the path
-      const allReports = repos.report.findAll();
-      const template = allReports.find(r =>
-        r.status === 'COMPLETED' &&
-        (r.filePath === linked.templatePath ||
-         r.filePath.endsWith(linked.templatePath) ||
-         linked.templatePath.endsWith(r.filePath))
-      );
-      if (template && template.id) {
-        reportIds.add(template.id);
-      }
-    }
-
-    if (reportIds.size === 0) {
-      reply.status(404);
-      return { error: 'No starred reports found' };
-    }
-
-    const csv = services.lineage.exportStarredLineageToCsv(Array.from(reportIds));
-
+    const csv = services.csvExport.exportAllStarred();
     reply.header('Content-Disposition', 'attachment; filename="lineage_starred_reports.csv"');
     reply.type('text/csv');
     return csv;

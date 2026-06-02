@@ -728,6 +728,63 @@ export class LineageService {
     return this.buildLineageCsv(reports);
   }
 
+  /**
+   * Export lineage for starred reports including linked reports with their own names
+   * @param reportInfos Array of { templateId, displayName, displayPath } objects
+   */
+  exportStarredLineageWithLinkedToCsv(reportInfos: Array<{ templateId: number; displayName: string; displayPath: string }>): string {
+    // Group by templateId to avoid duplicate lineage lookups
+    const byTemplate = new Map<number, Array<{ displayName: string; displayPath: string }>>();
+    for (const info of reportInfos) {
+      if (!byTemplate.has(info.templateId)) {
+        byTemplate.set(info.templateId, []);
+      }
+      byTemplate.get(info.templateId)!.push({ displayName: info.displayName, displayPath: info.displayPath });
+    }
+
+    return this.buildLineageCsvWithDisplayInfo(byTemplate);
+  }
+
+  /**
+   * Generate additional CSV rows for tables found through deeper tracing
+   * These are tables not directly in the lineage TABLE edges but found through VIEW/PROC tracing
+   */
+  generateAdditionalTableRows(
+    reportName: string,
+    reportPath: string,
+    additionalTables: Array<{ schema: string; tableName: string }>,
+    existingTables: Set<string>
+  ): string {
+    let csv = '';
+    for (const table of additionalTables) {
+      const key = `${table.schema}.${table.tableName}`.toLowerCase();
+      if (existingTables.has(key)) continue;
+
+      // Look up table to get hasPk
+      const tableRecord = this.repos.table.findByName(`${table.schema}.${table.tableName}`)
+        || this.repos.table.findByName(table.tableName);
+      const hasPk = tableRecord?.hasPk === true ? 'Yes' : tableRecord?.hasPk === false ? 'No' : '-';
+
+      csv += this.formatCsvRow({
+        reportType: 'SSRS',
+        reportName: reportName,
+        reportPath: reportPath,
+        datasetName: '',
+        datasetType: 'Deep Trace',
+        procs: [],
+        views: [],
+        comment: 'Found via VIEW/PROC tracing',
+        metadataTable: table.tableName,
+        metadataSchema: table.schema,
+        sourceServer: '',
+        sourceDatabase: '',
+        status: 'Yes',
+        hasPk: hasPk,
+      });
+    }
+    return csv;
+  }
+
   private buildLineageCsv(reports: any[]): string {
     // CSV header - matches old Excel format with Proc1-10, View1-10
     const header = [
@@ -824,12 +881,25 @@ export class LineageService {
         let tableName = edge.targetName || '';
         let schema = '', status = 'Yes', hasPk = '-';
 
-        if (edge.targetType === 'TABLE' && edge.targetId > 0) {
-          const table = this.repos.table.findById(edge.targetId);
+        if (edge.targetType === 'TABLE') {
+          // First try lookup by ID
+          let table = edge.targetId > 0 ? this.repos.table.findById(edge.targetId) : undefined;
+          // If not found by ID (stale reference), try by name
+          if (!table && edge.targetName) {
+            table = this.repos.table.findByName(edge.targetName);
+          }
           if (table) {
             tableName = table.tableName;
             schema = table.schemaName || '';
             hasPk = table.hasPk === true ? 'Yes' : table.hasPk === false ? 'No' : '-';
+          } else {
+            // Table not found at all - mark as not found
+            status = 'No';
+            const parts = (edge.targetName || '').split('.');
+            if (parts.length >= 2) {
+              schema = parts[parts.length - 2];
+              tableName = parts[parts.length - 1];
+            }
           }
         } else if (edge.targetType === 'TABLE_NOT_FOUND') {
           status = 'No';
@@ -859,6 +929,159 @@ export class LineageService {
           status,
           hasPk,
         });
+      }
+    }
+
+    return csv;
+  }
+
+  /**
+   * Build lineage CSV with display info for linked reports
+   * Each template may have multiple display entries (template itself + linked reports)
+   */
+  private buildLineageCsvWithDisplayInfo(byTemplate: Map<number, Array<{ displayName: string; displayPath: string }>>): string {
+    const header = [
+      'ReportType',
+      'Report Name',
+      'Report Path',
+      'Dataset',
+      'Dataset Type',
+      'Proc1', 'Proc2', 'Proc3', 'Proc4', 'Proc5', 'Proc6', 'Proc7', 'Proc8', 'Proc9', 'Proc10',
+      'View1', 'View2', 'View3', 'View4', 'View5', 'View6', 'View7', 'View8', 'View9', 'View10',
+      'Comment',
+      'Table',
+      'Schema',
+      'Server',
+      'Database',
+      'In SQL2(D300SQLDW01)',
+      'SQL2(D300SQLDW01) Has PK'
+    ].join(',') + '\n';
+
+    let csv = header;
+
+    for (const [templateId, displayInfos] of byTemplate) {
+      const report = this.repos.report.findById(templateId);
+      if (!report || report.status !== 'COMPLETED') continue;
+
+      const edges = this.repos.lineage.findByReportId(report.id!);
+      const datasets = this.repos.dataset.findByReportId(report.id!);
+      const datasetMap = new Map(datasets.map(ds => [ds.id, ds]));
+
+      // Get XML server/database from data sources
+      const dataSources = this.repos.dataSource.findByReportId(report.id!);
+      let xmlServer = '', xmlDatabase = '';
+      for (const ds of dataSources) {
+        if (ds.referencePath) {
+          const sharedDs = this.repos.sharedDataSource.findByPath(ds.referencePath);
+          if (sharedDs) {
+            xmlServer = sharedDs.server || '';
+            xmlDatabase = sharedDs.databaseName || '';
+            break;
+          }
+        }
+        if (!xmlServer && ds.server) xmlServer = ds.server;
+        if (!xmlDatabase && ds.databaseName) xmlDatabase = ds.databaseName;
+      }
+
+      // For each display entry (could be template or linked report), output the lineage
+      for (const displayInfo of displayInfos) {
+        const tableEdges = edges.filter(e => e.targetType.includes('TABLE'));
+
+        if (tableEdges.length === 0) {
+          if (datasets.length === 0) {
+            csv += this.formatCsvRow({
+              reportType: 'SSRS',
+              reportName: displayInfo.displayName,
+              reportPath: displayInfo.displayPath,
+              datasetName: '',
+              datasetType: '',
+              procs: [],
+              views: [],
+              comment: '',
+              metadataTable: 'No datasets in report',
+              metadataSchema: '',
+              sourceServer: xmlServer,
+              sourceDatabase: xmlDatabase,
+              status: 'NO TABLES',
+              hasPk: '-',
+            });
+          } else {
+            for (const ds of datasets) {
+              csv += this.formatCsvRow({
+                reportType: 'SSRS',
+                reportName: displayInfo.displayName,
+                reportPath: displayInfo.displayPath,
+                datasetName: ds.datasetName,
+                datasetType: ds.commandType || '',
+                procs: [],
+                views: [],
+                comment: '',
+                metadataTable: 'No table references found',
+                metadataSchema: '',
+                sourceServer: xmlServer,
+                sourceDatabase: xmlDatabase,
+                status: 'NO TABLES',
+                hasPk: '-',
+              });
+            }
+          }
+          continue;
+        }
+
+        for (const edge of tableEdges) {
+          const chain = this.buildChain(edges, datasetMap, edge);
+          let tableName = edge.targetName || '';
+          let schema = '', status = 'Yes', hasPk = '-';
+
+          if (edge.targetType === 'TABLE') {
+            // First try lookup by ID
+            let table = edge.targetId > 0 ? this.repos.table.findById(edge.targetId) : undefined;
+            // If not found by ID (stale reference), try by name
+            if (!table && edge.targetName) {
+              table = this.repos.table.findByName(edge.targetName);
+            }
+            if (table) {
+              tableName = table.tableName;
+              schema = table.schemaName || '';
+              hasPk = table.hasPk === true ? 'Yes' : table.hasPk === false ? 'No' : '-';
+            } else {
+              // Table not found at all - mark as not found
+              status = 'No';
+              const parts = (edge.targetName || '').split('.');
+              if (parts.length >= 2) {
+                schema = parts[parts.length - 2];
+                tableName = parts[parts.length - 1];
+              }
+            }
+          } else if (edge.targetType === 'TABLE_NOT_FOUND') {
+            status = 'No';
+            const parts = (edge.targetName || '').split('.');
+            if (parts.length === 4) {
+              [, , schema, tableName] = parts;
+            } else if (parts.length === 3) {
+              [, schema, tableName] = parts;
+            } else if (parts.length === 2) {
+              [schema, tableName] = parts;
+            }
+          }
+
+          csv += this.formatCsvRow({
+            reportType: 'SSRS',
+            reportName: displayInfo.displayName,
+            reportPath: displayInfo.displayPath,
+            datasetName: chain.datasetName,
+            datasetType: chain.datasetType,
+            procs: chain.procs,
+            views: chain.views,
+            comment: chain.comment,
+            metadataTable: tableName,
+            metadataSchema: schema,
+            sourceServer: xmlServer,
+            sourceDatabase: xmlDatabase,
+            status,
+            hasPk,
+          });
+        }
       }
     }
 

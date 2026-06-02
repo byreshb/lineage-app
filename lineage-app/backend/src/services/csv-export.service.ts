@@ -205,24 +205,55 @@ export class CsvExportService {
       reports = reports.filter((r) => r.starred === true);
     }
 
+    // Process template reports
     for (const report of reports) {
-      const edges = this.repos.lineage.findByReportId(report.id!);
-      const datasets = this.repos.dataset.findByReportId(report.id!);
-      const datasetMap = new Map(datasets.map(ds => [ds.id, ds]));
-
-      // Get all direct table edges (already resolved)
-      const tableEdges = edges.filter(
-        (e) => e.targetType === 'TABLE' || e.targetType === 'TABLE_NOT_FOUND'
+      rows += this.getSsrsRowsForReport(
+        report.id!,
+        report.reportName || report.fileName,
+        report.filePath || ''
       );
+    }
 
-      // Get proc and view edges - need to trace these to base tables
-      const procEdges = edges.filter((e) => e.targetType === 'PROC');
-      const viewEdges = edges.filter((e) => e.targetType === 'VIEW');
+    // Also process starred linked reports (they use their template's lineage)
+    if (starredOnly) {
+      const linkedReports = this.repos.linkedReport.findStarred();
+      for (const linkedReport of linkedReports) {
+        const templateReport = this.repos.report.findByFilePath(linkedReport.templatePath);
+        if (templateReport && templateReport.status === 'COMPLETED') {
+          rows += this.getSsrsRowsForReport(
+            templateReport.id!,
+            linkedReport.linkedReportName,
+            linkedReport.linkedReportPath
+          );
+        }
+      }
+    }
 
-      let hasAnyTables = false;
+    return rows;
+  }
 
-      // Process direct table references (from datasets with Text type)
-      for (const edge of tableEdges) {
+  /**
+   * Generate rows for a single SSRS report (used by both template and linked reports)
+   */
+  private getSsrsRowsForReport(reportId: number, reportName: string, reportPath: string): string {
+    let rows = '';
+    const edges = this.repos.lineage.findByReportId(reportId);
+    const datasets = this.repos.dataset.findByReportId(reportId);
+    const datasetMap = new Map(datasets.map(ds => [ds.id, ds]));
+
+    // Get all direct table edges (already resolved)
+    const tableEdges = edges.filter(
+      (e) => e.targetType === 'TABLE' || e.targetType === 'TABLE_NOT_FOUND'
+    );
+
+    // Get proc and view edges - need to trace these to base tables
+    const procEdges = edges.filter((e) => e.targetType === 'PROC');
+    const viewEdges = edges.filter((e) => e.targetType === 'VIEW');
+
+    let hasAnyTables = false;
+
+    // Process direct table references (from datasets with Text type)
+    for (const edge of tableEdges) {
         hasAnyTables = true;
         const isNotFound = edge.targetType === 'TABLE_NOT_FOUND';
         let foundTable = edge.targetName || '';
@@ -232,10 +263,15 @@ export class CsvExportService {
 
         let hasPk = '-';
         if (!isNotFound && edge.targetId > 0) {
-          const table = this.repos.table.findById(edge.targetId);
+          // First try lookup by ID
+          let table = this.repos.table.findById(edge.targetId);
+          // If not found by ID (stale reference), try by name
+          if (!table && edge.targetName) {
+            table = this.repos.table.findByName(edge.targetName);
+          }
           if (table) {
             foundTable = table.tableName;
-            // Don't fill in schema - leave blank, comment will show available schemas
+            foundSchema = table.schemaName || '';  // Fill in schema from database
             hasPk = table.hasPk === true ? 'Yes' : table.hasPk === false ? 'No' : '-';
           }
         } else {
@@ -264,8 +300,8 @@ export class CsvExportService {
 
         rows += this.formatRow({
           reportType: 'SSRS',
-          reportName: report.reportName || report.fileName,
-          reportPath: report.filePath || '',
+          reportName: reportName,
+          reportPath: reportPath,
           datasetName: chain.datasetName,
           datasetType: chain.datasetType,
           procs: chain.procs,
@@ -307,7 +343,17 @@ export class CsvExportService {
           let finalComment = bt.isExternal
             ? (comment ? `${comment}; Base table not in SQL2(D300SQLDW01) metadata` : 'Base table not in SQL2(D300SQLDW01) metadata')
             : comment;
-          // Add schemas comment if schema not specified
+
+          // Look up schema from database if not set
+          let tableSchema = bt.schema;
+          if (!tableSchema && !bt.isExternal) {
+            const table = this.repos.table.findByName(bt.tableName);
+            if (table) {
+              tableSchema = table.schemaName || '';
+            }
+          }
+
+          // Add schemas comment if table exists in multiple schemas
           const schemasComment = this.getSchemasComment(bt.tableName);
           if (schemasComment) {
             finalComment = finalComment ? `${finalComment}; ${schemasComment}` : schemasComment;
@@ -315,15 +361,15 @@ export class CsvExportService {
 
           rows += this.formatRow({
             reportType: 'SSRS',
-            reportName: report.reportName || report.fileName,
-            reportPath: report.filePath || '',
+            reportName: reportName,
+            reportPath: reportPath,
             datasetName: chain.datasetName,
             datasetType: chain.datasetType,
             procs,
             views,
             comment: finalComment,
             metadataTable: bt.tableName,
-            metadataSchema: bt.schema,
+            metadataSchema: tableSchema,
             linkedServer: '',
             linkedServerDatabase: bt.isExternal ? bt.database : '',
             status: bt.isExternal ? 'No' : 'Yes',
@@ -360,7 +406,17 @@ export class CsvExportService {
           let finalComment = bt.isExternal
             ? (comment ? `${comment}; Base table not in SQL2(D300SQLDW01) metadata` : 'Base table not in SQL2(D300SQLDW01) metadata')
             : comment;
-          // Add schemas comment if schema not specified
+
+          // Look up schema from database if not set
+          let tableSchema = bt.schema;
+          if (!tableSchema && !bt.isExternal) {
+            const table = this.repos.table.findByName(bt.tableName);
+            if (table) {
+              tableSchema = table.schemaName || '';
+            }
+          }
+
+          // Add schemas comment if table exists in multiple schemas
           const schemasComment = this.getSchemasComment(bt.tableName);
           if (schemasComment) {
             finalComment = finalComment ? `${finalComment}; ${schemasComment}` : schemasComment;
@@ -368,15 +424,15 @@ export class CsvExportService {
 
           rows += this.formatRow({
             reportType: 'SSRS',
-            reportName: report.reportName || report.fileName,
-            reportPath: report.filePath || '',
+            reportName: reportName,
+            reportPath: reportPath,
             datasetName: chain.datasetName,
             datasetType: chain.datasetType,
             procs,
             views,
             comment: finalComment,
             metadataTable: bt.tableName,
-            metadataSchema: bt.schema,
+            metadataSchema: tableSchema,
             linkedServer: '',
             linkedServerDatabase: bt.isExternal ? bt.database : '',
             status: bt.isExternal ? 'No' : 'Yes',
@@ -391,8 +447,8 @@ export class CsvExportService {
         for (const ds of datasets) {
           rows += this.formatRow({
             reportType: 'SSRS',
-            reportName: report.reportName || report.fileName,
-            reportPath: report.filePath || '',
+            reportName: reportName,
+            reportPath: reportPath,
             datasetName: ds.datasetName,
             datasetType: ds.commandType || '',
             procs: [],
@@ -410,8 +466,8 @@ export class CsvExportService {
         if (datasets.length === 0) {
           rows += this.formatRow({
             reportType: 'SSRS',
-            reportName: report.reportName || report.fileName,
-            reportPath: report.filePath || '',
+            reportName: reportName,
+            reportPath: reportPath,
             datasetName: '',
             datasetType: '',
             procs: [],
@@ -427,9 +483,15 @@ export class CsvExportService {
           });
         }
       }
-    }
 
     return rows;
+  }
+
+  /**
+   * Get starred Power BI rows (public method for use by routes)
+   */
+  getStarredPbiRows(): string {
+    return this.getPbiRows(true);
   }
 
   /**
@@ -549,6 +611,15 @@ export class CsvExportService {
               ? (comment ? `${comment}; Base table not in SQL2(D300SQLDW01) metadata` : 'Base table not in SQL2(D300SQLDW01) metadata')
               : comment;
 
+            // Look up schema from database if not set
+            let tableSchema = bt.schema;
+            if (!tableSchema && !bt.isExternal) {
+              const table = this.repos.table.findByName(bt.tableName);
+              if (table) {
+                tableSchema = table.schemaName || '';
+              }
+            }
+
             rows += this.formatRow({
               reportType: 'PowerBI',
               reportName: report.reportName,
@@ -559,7 +630,7 @@ export class CsvExportService {
               views,
               comment: finalComment,
               metadataTable: bt.tableName,
-              metadataSchema: bt.schema,
+              metadataSchema: tableSchema,
               linkedServer: '',
               linkedServerDatabase: bt.isExternal ? bt.database : '',
               status: bt.isExternal ? 'No' : 'Yes',
@@ -1438,7 +1509,7 @@ export class CsvExportService {
 
     let csv = header;
 
-    // Process starred SSRS reports
+    // Process starred SSRS template reports
     const ssrsReports = this.repos.report.findStarred();
     const completedSsrs = ssrsReports.filter((r) => r.status === 'COMPLETED');
 
@@ -1452,6 +1523,25 @@ export class CsvExportService {
           this.escapeCsv(table.schema),
           this.escapeCsv(table.tableName)
         ].join(',') + '\n';
+      }
+    }
+
+    // Process starred linked reports (SSRS linked reports that point to templates)
+    const linkedReports = this.repos.linkedReport.findStarred();
+    for (const linkedReport of linkedReports) {
+      // Find the template report to get lineage data
+      const templateReport = this.repos.report.findByFilePath(linkedReport.templatePath);
+      if (templateReport && templateReport.status === 'COMPLETED') {
+        const tables = this.getUniqueTablesFromReport(templateReport.id!);
+        for (const table of tables) {
+          csv += [
+            'SSRS',
+            this.escapeCsv(linkedReport.linkedReportName),
+            this.escapeCsv(linkedReport.linkedReportPath),
+            this.escapeCsv(table.schema),
+            this.escapeCsv(table.tableName)
+          ].join(',') + '\n';
+        }
       }
     }
 
@@ -1500,7 +1590,7 @@ export class CsvExportService {
     // Collect all unique tables across all starred reports
     const allTables = new Map<string, { schema: string; tableName: string }>();
 
-    // Process starred SSRS reports
+    // Process starred SSRS template reports
     const ssrsReports = this.repos.report.findStarred();
     const completedSsrs = ssrsReports.filter((r) => r.status === 'COMPLETED');
 
@@ -1510,6 +1600,21 @@ export class CsvExportService {
         const key = `${table.schema}.${table.tableName}`.toLowerCase();
         if (!allTables.has(key)) {
           allTables.set(key, table);
+        }
+      }
+    }
+
+    // Process starred linked reports (get tables from their template reports)
+    const linkedReports = this.repos.linkedReport.findStarred();
+    for (const linkedReport of linkedReports) {
+      const templateReport = this.repos.report.findByFilePath(linkedReport.templatePath);
+      if (templateReport && templateReport.status === 'COMPLETED') {
+        const tables = this.getUniqueTablesFromReport(templateReport.id!);
+        for (const table of tables) {
+          const key = `${table.schema}.${table.tableName}`.toLowerCase();
+          if (!allTables.has(key)) {
+            allTables.set(key, table);
+          }
         }
       }
     }
@@ -1654,9 +1759,9 @@ export class CsvExportService {
   }
 
   /**
-   * Get unique tables from an SSRS report's lineage
+   * Get unique tables from an SSRS report's lineage (public for use by other services)
    */
-  private getUniqueTablesFromReport(reportId: number): Array<{ schema: string; tableName: string }> {
+  getUniqueTablesFromReport(reportId: number): Array<{ schema: string; tableName: string }> {
     const edges = this.repos.lineage.findByReportId(reportId);
     const tables: Array<{ schema: string; tableName: string }> = [];
     const seen = new Set<string>();
@@ -1664,14 +1769,17 @@ export class CsvExportService {
     // Direct TABLE edges
     const tableEdges = edges.filter((e) => e.targetType === 'TABLE');
     for (const edge of tableEdges) {
-      if (edge.targetId > 0) {
-        const table = this.repos.table.findById(edge.targetId);
-        if (table) {
-          const key = `${table.schemaName}.${table.tableName}`.toLowerCase();
-          if (!seen.has(key)) {
-            seen.add(key);
-            tables.push({ schema: table.schemaName, tableName: table.tableName });
-          }
+      // First try lookup by ID
+      let table = edge.targetId > 0 ? this.repos.table.findById(edge.targetId) : undefined;
+      // If not found by ID (stale reference), try by name
+      if (!table && edge.targetName) {
+        table = this.repos.table.findByName(edge.targetName);
+      }
+      if (table) {
+        const key = `${table.schemaName}.${table.tableName}`.toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          tables.push({ schema: table.schemaName, tableName: table.tableName });
         }
       }
     }

@@ -8,7 +8,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "vitest"
+    "test": "vitest",
+    "test:api": "node tests/api-regression-test.cjs"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",

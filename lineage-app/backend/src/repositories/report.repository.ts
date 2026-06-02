@@ -50,6 +50,11 @@ export class ReportRepository {
     return this.mapRow(row);
   }
 
+  findByFilePath(filePath: string): Report | undefined {
+    const row = this.db.prepare('SELECT * FROM reports WHERE file_path = ?').get(filePath);
+    return this.mapRow(row);
+  }
+
   findByStatus(status: ReportStatus, source?: RdlSource): Report[] {
     if (source) {
       const rows = this.db.prepare('SELECT * FROM reports WHERE status = ? AND source = ? ORDER BY file_name').all(status, source);

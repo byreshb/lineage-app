@@ -31,7 +31,7 @@ export class TableRepository {
     return this.mapRow(row);
   }
 
-  findByName(tableName: string): SourceTable | undefined {
+  findByName(tableName: string, preferredSchema?: string): SourceTable | undefined {
     // Handle schema-prefixed names like "dbo.DateDim"
     if (tableName.includes('.')) {
       const parts = tableName.split('.');
@@ -40,9 +40,26 @@ export class TableRepository {
       const row = this.db.prepare('SELECT * FROM source_tables WHERE schema_name = ? AND table_name = ?').get(schema, name);
       if (row) return this.mapRow(row);
     }
-    // Also try exact match on table_name only
-    const row = this.db.prepare('SELECT * FROM source_tables WHERE table_name = ?').get(tableName);
-    return this.mapRow(row);
+
+    // Try preferred schema first if provided
+    if (preferredSchema) {
+      const row = this.db.prepare('SELECT * FROM source_tables WHERE schema_name = ? AND table_name = ?').get(preferredSchema, tableName);
+      if (row) return this.mapRow(row);
+    }
+
+    // Find all matches and prefer certain schemas
+    const rows = this.db.prepare('SELECT * FROM source_tables WHERE table_name = ? ORDER BY schema_name').all(tableName);
+    if (rows.length === 0) return undefined;
+    if (rows.length === 1) return this.mapRow(rows[0]);
+
+    // Prefer syspro > dbo > bi > stage > other schemas
+    const schemaPreference = ['syspro', 'dbo', 'bi'];
+    for (const schema of schemaPreference) {
+      const match = rows.find((r: any) => r.schema_name === schema);
+      if (match) return this.mapRow(match);
+    }
+    // Return first match if no preferred schema found
+    return this.mapRow(rows[0]);
   }
 
   findBySchemaAndName(schemaName: string, tableName: string): SourceTable | undefined {
