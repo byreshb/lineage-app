@@ -426,7 +426,10 @@ Shows all columns from tables used by starred reports, comparing SQL2 vs New Sys
 
 ### Custom Field Finder (CFF) Export
 
-The CFF feature identifies columns from **custom tables** (tables ending with `+`) used across all starred reports.
+The CFF feature identifies columns **used from custom tables** (tables ending with `+`) by parsing SQL definitions of views, procs, and datasets across all starred reports.
+
+**What are Custom Tables?**
+Custom tables are Syspro extension tables that end with `+` (e.g., `ArCustomer+`, `InvMaster+`, `WipMaster+`). These contain custom fields added by the organization.
 
 **API Endpoint:**
 ```
@@ -446,30 +449,59 @@ GET /api/reports/cff/export
 | CustomTableName | Custom table name (ends with +) |
 | ColumnName | Column being used from custom table |
 | UsageType | SELECT, WHERE, JOIN, etc. |
-| ExtractionStatus | OK, DYNAMIC_SQL, PARSE_ERROR, UNKNOWN |
-| InSQL2 | Yes/No - column exists in sql2_columns? |
+| ExtractionStatus | OK, DYNAMIC_SQL, PARSE_ERROR, UNKNOWN, SELECT_STAR |
+| InSQL2 | Yes/No with schema.table checked (e.g., "Yes (dbo.ArCustomer+)") |
 | SQL2_DataType | Data type from SQL2 metadata |
-| InNewSyspro | Yes/No - column exists in trn1_columns? |
+| InNewSyspro | Yes/No with schema.table checked |
 | TRN1_DataType | Data type from TRN1 metadata |
 
-**How CFF Works:**
-1. For each starred report, get all lineage edges (DATASET→PROC→VIEW→TABLE chains)
-2. Find all edges where target is a custom table (ends with `+`)
-3. For each custom table edge, trace back through all calling entities (VIEWs, PROCs, DATASETs)
-4. Extract columns from each entity's SQL definition using `node-sql-parser`
-5. Look up column metadata from `sql2_columns` and `trn1_columns`
+**How CFF Works (Implementation Logic):**
+
+```
+1. Get Starred Reports (SSRS templates + linked + Power BI)
+         ↓
+2. For each report, get pre-built lineage edges from database
+         ↓
+3. Filter edges where target is custom table (ends with '+')
+   Example: VIEW|syspro.vArCustomer → TABLE|ArCustomer+
+         ↓
+4. For each custom table edge:
+   a. Get the source entity (VIEW, PROC, or DATASET)
+   b. Retrieve its SQL definition from database
+   c. Parse SQL using node-sql-parser.columnList() + regex fallback
+   d. Build alias map (e.g., "c" → "ArCustomer+")
+   e. Filter columns that reference the custom table
+         ↓
+5. For each extracted column:
+   a. Look up in sql2_columns (SQL2 metadata)
+   b. Look up in trn1_columns (New Syspro metadata)
+   c. Record data type and availability
+         ↓
+6. Output CSV with stats summary at end
+```
+
+**Column Extraction Method:**
+- **Primary:** `node-sql-parser.columnList()` - returns `["select::alias::column", ...]`
+- **Fallback:** Regex patterns for T-SQL bracket syntax `[table].[column+]`
+- **Combined:** Both methods run, results deduplicated
 
 **ExtractionStatus Values:**
 
 | Status | Meaning |
 |--------|---------|
 | OK | Column successfully extracted from SQL |
-| DYNAMIC_SQL | Entity uses EXEC(@sql) - columns built at runtime |
-| PARSE_ERROR | SQL parser failed - complex/non-standard syntax |
-| UNKNOWN | Column table couldn't be determined |
-| SELECT_STAR | `SELECT *` used - all columns from table |
+| SELECT_STAR | `SELECT *` used - expands to actual columns from sql2_columns |
+| DYNAMIC_SQL | Entity uses EXEC(@sql) - columns built at runtime, cannot parse |
+| PARSE_ERROR | SQL parser failed - complex/non-standard T-SQL syntax |
+| UNKNOWN | Column table couldn't be determined (unresolved alias) |
+
+**Key Files:**
+- `backend/src/services/cff.service.ts` - Main CFF logic
+- `backend/src/parsers/sql.analyzer.ts` - `extractColumns()` function
 
 **Current Stats (27 starred reports):**
 - 17 unique custom tables
-- 96 unique custom columns
-- 1,410 total CFF entries
+- ~84 unique custom columns
+- ~1,400 total CFF entries
+- ~69% extraction success rate (OK)
+- ~81% columns found in SQL2 metadata

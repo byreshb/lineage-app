@@ -28,9 +28,9 @@ export interface CustomFieldUsage {
     | "PARSE_ERROR"
     | "UNKNOWN"
     | "SELECT_STAR";
-  inSQL2: "Yes" | "No";
+  inSQL2: string; // "Yes (schema.table)" or "No (checked: schema.table)"
   sql2DataType: string | null;
-  inNewSyspro: "Yes" | "No";
+  inNewSyspro: string; // "Yes (schema.table)" or "No (checked: schema.table)"
   trn1DataType: string | null;
 }
 
@@ -166,8 +166,8 @@ export class CffService {
       }
 
       // Count metadata availability
-      if (field.inSQL2 === "Yes") stats.inSQL2++;
-      if (field.inNewSyspro === "Yes") stats.inNewSyspro++;
+      if (field.inSQL2.startsWith("Yes")) stats.inSQL2++;
+      if (field.inNewSyspro.startsWith("Yes")) stats.inNewSyspro++;
 
       // Track unique items
       uniqueReports.add(field.reportName);
@@ -693,49 +693,74 @@ export class CffService {
 
   /**
    * Get column metadata from SQL2 and TRN1 databases
+   * Returns descriptive status showing which schema.table was checked
    */
   private getColumnMetadata(
     tableName: string,
     schema: string,
     columnName: string,
   ): {
-    inSQL2: "Yes" | "No";
+    inSQL2: string;
     sql2DataType: string | null;
-    inNewSyspro: "Yes" | "No";
+    inNewSyspro: string;
     trn1DataType: string | null;
   } {
+    const checkedLocation = schema ? `${schema}.${tableName}` : tableName;
+
     // Skip metadata lookup for placeholder columns
     if (columnName.startsWith("[")) {
       return {
-        inSQL2: "No",
+        inSQL2: `No (checked: ${checkedLocation})`,
         sql2DataType: null,
-        inNewSyspro: "No",
+        inNewSyspro: `No (checked: ${checkedLocation})`,
         trn1DataType: null,
       };
     }
 
-    // Look up SQL2 column
-    const sql2Columns = this.repos.column.findSql2ColumnsByTable(
-      tableName,
-      schema,
-    );
+    // Look up SQL2 column - try with schema first, then without
+    let sql2Columns = this.repos.column.findSql2ColumnsByTable(tableName, schema);
+    let foundSql2Schema = schema;
+
+    // If not found with given schema, try searching by table name only
+    if (sql2Columns.length === 0 && schema) {
+      sql2Columns = this.repos.column.findSql2ColumnsByTable(tableName, "");
+      if (sql2Columns.length > 0) {
+        foundSql2Schema = sql2Columns[0]?.schemaName || "";
+      }
+    }
+
     const sql2Col = sql2Columns.find(
       (c) => c.columnName.toLowerCase() === columnName.toLowerCase(),
     );
 
     // Look up TRN1 column
-    const trn1Columns = this.repos.column.findTrn1ColumnsByObject(
-      tableName,
-      schema,
-    );
+    let trn1Columns = this.repos.column.findTrn1ColumnsByObject(tableName, schema);
+    let foundTrn1Schema = schema;
+
+    if (trn1Columns.length === 0 && schema) {
+      trn1Columns = this.repos.column.findTrn1ColumnsByObject(tableName, "");
+      if (trn1Columns.length > 0) {
+        foundTrn1Schema = trn1Columns[0]?.schemaName || "";
+      }
+    }
+
     const trn1Col = trn1Columns.find(
       (c) => c.columnName.toLowerCase() === columnName.toLowerCase(),
     );
 
+    // Build descriptive status with schema info
+    const sql2Status = sql2Col
+      ? `Yes (${foundSql2Schema || "dbo"}.${tableName})`
+      : `No (checked: ${checkedLocation})`;
+
+    const trn1Status = trn1Col
+      ? `Yes (${foundTrn1Schema || "dbo"}.${tableName})`
+      : `No (checked: ${checkedLocation})`;
+
     return {
-      inSQL2: sql2Col ? "Yes" : "No",
+      inSQL2: sql2Status,
       sql2DataType: sql2Col?.dataType || null,
-      inNewSyspro: trn1Col ? "Yes" : "No",
+      inNewSyspro: trn1Status,
       trn1DataType: trn1Col?.dataType || null,
     };
   }
