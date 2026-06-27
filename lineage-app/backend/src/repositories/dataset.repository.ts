@@ -1,5 +1,5 @@
-import Database from 'better-sqlite3';
-import { Dataset, CommandType } from '../types/index.js';
+import Database from "better-sqlite3";
+import { Dataset, CommandType } from "../types/index.js";
 
 export class DatasetRepository {
   private db: Database.Database;
@@ -22,12 +22,16 @@ export class DatasetRepository {
   }
 
   findByReportId(reportId: number): Dataset[] {
-    const rows = this.db.prepare('SELECT * FROM datasets WHERE report_id = ? ORDER BY dataset_name').all(reportId);
+    const rows = this.db
+      .prepare(
+        "SELECT * FROM datasets WHERE report_id = ? ORDER BY dataset_name",
+      )
+      .all(reportId);
     return rows.map((row) => this.mapRow(row)!);
   }
 
   findById(id: number): Dataset | undefined {
-    const row = this.db.prepare('SELECT * FROM datasets WHERE id = ?').get(id);
+    const row = this.db.prepare("SELECT * FROM datasets WHERE id = ?").get(id);
     return this.mapRow(row);
   }
 
@@ -43,7 +47,7 @@ export class DatasetRepository {
         dataset.commandType,
         dataset.commandText,
         dataset.sharedDatasetPath,
-        dataset.fields
+        dataset.fields,
       );
       dataset.id = result.lastInsertRowid as number;
     } else {
@@ -58,17 +62,17 @@ export class DatasetRepository {
         dataset.commandText,
         dataset.sharedDatasetPath,
         dataset.fields,
-        dataset.id
+        dataset.id,
       );
     }
     return dataset;
   }
 
   deleteByReportId(reportId: number): void {
-    this.db.prepare('DELETE FROM datasets WHERE report_id = ?').run(reportId);
+    this.db.prepare("DELETE FROM datasets WHERE report_id = ?").run(reportId);
   }
 
   deleteById(id: number): void {
-    this.db.prepare('DELETE FROM datasets WHERE id = ?').run(id);
+    this.db.prepare("DELETE FROM datasets WHERE id = ?").run(id);
   }
 }

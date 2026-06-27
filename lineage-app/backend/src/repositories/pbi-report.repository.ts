@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import Database from "better-sqlite3";
 
 export interface PbiReport {
   id: number | null;
@@ -25,22 +25,30 @@ export class PbiReportRepository {
   }
 
   findAll(): PbiReport[] {
-    const rows = this.db.prepare('SELECT * FROM pbi_reports ORDER BY report_name').all();
+    const rows = this.db
+      .prepare("SELECT * FROM pbi_reports ORDER BY report_name")
+      .all();
     return rows.map((row) => this.mapRow(row)!);
   }
 
   findById(id: number): PbiReport | undefined {
-    const row = this.db.prepare('SELECT * FROM pbi_reports WHERE id = ?').get(id);
+    const row = this.db
+      .prepare("SELECT * FROM pbi_reports WHERE id = ?")
+      .get(id);
     return this.mapRow(row);
   }
 
   findByName(reportName: string): PbiReport | undefined {
-    const row = this.db.prepare('SELECT * FROM pbi_reports WHERE report_name = ?').get(reportName);
+    const row = this.db
+      .prepare("SELECT * FROM pbi_reports WHERE report_name = ?")
+      .get(reportName);
     return this.mapRow(row);
   }
 
   create(reportName: string): PbiReport {
-    const stmt = this.db.prepare('INSERT INTO pbi_reports (report_name) VALUES (?)');
+    const stmt = this.db.prepare(
+      "INSERT INTO pbi_reports (report_name) VALUES (?)",
+    );
     const result = stmt.run(reportName);
     return {
       id: result.lastInsertRowid as number,
@@ -56,29 +64,39 @@ export class PbiReportRepository {
   }
 
   countAll(): number {
-    const row = this.db.prepare('SELECT COUNT(*) as count FROM pbi_reports').get() as any;
+    const row = this.db
+      .prepare("SELECT COUNT(*) as count FROM pbi_reports")
+      .get() as any;
     return row?.count || 0;
   }
 
   clear(): void {
-    this.db.prepare('DELETE FROM pbi_reports').run();
+    this.db.prepare("DELETE FROM pbi_reports").run();
   }
 
   toggleStar(id: number): boolean {
     const report = this.findById(id);
     if (!report) return false;
     const newStarred = report.starred ? 0 : 1;
-    this.db.prepare('UPDATE pbi_reports SET starred = ? WHERE id = ?').run(newStarred, id);
+    this.db
+      .prepare("UPDATE pbi_reports SET starred = ? WHERE id = ?")
+      .run(newStarred, id);
     return newStarred === 1;
   }
 
   findStarred(): PbiReport[] {
-    const rows = this.db.prepare('SELECT * FROM pbi_reports WHERE starred = 1 ORDER BY report_name').all();
+    const rows = this.db
+      .prepare(
+        "SELECT * FROM pbi_reports WHERE starred = 1 ORDER BY report_name",
+      )
+      .all();
     return rows.map((row) => this.mapRow(row)!);
   }
 
   countStarred(): number {
-    const row = this.db.prepare('SELECT COUNT(*) as count FROM pbi_reports WHERE starred = 1').get() as any;
+    const row = this.db
+      .prepare("SELECT COUNT(*) as count FROM pbi_reports WHERE starred = 1")
+      .get() as any;
     return row?.count || 0;
   }
 }

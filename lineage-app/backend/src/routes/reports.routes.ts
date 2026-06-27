@@ -1,33 +1,39 @@
-import { FastifyInstance } from 'fastify';
-import { Services } from '../services/index.js';
-import { Repositories } from '../repositories/index.js';
-import dayjs from 'dayjs';
+import { FastifyInstance } from "fastify";
+import { Services } from "../services/index.js";
+import { Repositories } from "../repositories/index.js";
+import dayjs from "dayjs";
 
-export async function reportsRoutes(app: FastifyInstance, services: Services, repos: Repositories) {
+export async function reportsRoutes(
+  app: FastifyInstance,
+  services: Services,
+  repos: Repositories,
+) {
   // GET /api/reports
-  app.get('/', async () => {
+  app.get("/", async () => {
     const reports = repos.report.findAll();
 
     return reports
-      .filter(r => r.status === 'COMPLETED')
-      .map(r => ({
+      .filter((r) => r.status === "COMPLETED")
+      .map((r) => ({
         id: r.id,
         fileName: r.fileName,
         reportName: r.reportName || r.fileName,
-        source: r.source || 'FILES',
+        source: r.source || "FILES",
         starred: r.starred,
-        lastRunAt: r.lastRunAt ? dayjs(r.lastRunAt).format('MMM D, YYYY h:mm A') : '',
+        lastRunAt: r.lastRunAt
+          ? dayjs(r.lastRunAt).format("MMM D, YYYY h:mm A")
+          : "",
       }));
   });
 
   // POST /api/reports/:id/star - Toggle star status
-  app.post('/:id/star', async (request, reply) => {
+  app.post("/:id/star", async (request, reply) => {
     const { id } = request.params as { id: string };
     const report = repos.report.findById(parseInt(id, 10));
 
     if (!report) {
       reply.status(404);
-      return { error: 'Report not found' };
+      return { error: "Report not found" };
     }
 
     const newStarred = repos.report.toggleStar(parseInt(id, 10));
@@ -35,56 +41,74 @@ export async function reportsRoutes(app: FastifyInstance, services: Services, re
   });
 
   // GET /api/reports/starred - Get all starred reports
-  app.get('/starred', async (request) => {
+  app.get("/starred", async (request) => {
     const { source } = request.query as { source?: string };
-    const rdlSource = source === 'DATABASE' ? 'DATABASE' : source === 'FILES' ? 'FILES' : undefined;
+    const rdlSource =
+      source === "DATABASE"
+        ? "DATABASE"
+        : source === "FILES"
+          ? "FILES"
+          : undefined;
     const reports = repos.report.findStarred(rdlSource);
 
     return reports
-      .filter(r => r.status === 'COMPLETED')
-      .map(r => ({
+      .filter((r) => r.status === "COMPLETED")
+      .map((r) => ({
         id: r.id,
         fileName: r.fileName,
         reportName: r.reportName || r.fileName,
-        source: r.source || 'FILES',
+        source: r.source || "FILES",
         starred: r.starred,
-        lastRunAt: r.lastRunAt ? dayjs(r.lastRunAt).format('MMM D, YYYY h:mm A') : '',
+        lastRunAt: r.lastRunAt
+          ? dayjs(r.lastRunAt).format("MMM D, YYYY h:mm A")
+          : "",
       }));
   });
 
   // GET /api/reports/starred/count - Get count of starred reports
-  app.get('/starred/count', async (request) => {
+  app.get("/starred/count", async (request) => {
     const { source } = request.query as { source?: string };
-    const rdlSource = source === 'DATABASE' ? 'DATABASE' : source === 'FILES' ? 'FILES' : undefined;
+    const rdlSource =
+      source === "DATABASE"
+        ? "DATABASE"
+        : source === "FILES"
+          ? "FILES"
+          : undefined;
     return { count: repos.report.countStarred(rdlSource) };
   });
 
   // GET /api/reports/starred/export-csv - Export only starred reports to CSV
   // Uses the same unified export as export-all-csv for consistency
-  app.get('/starred/export-csv', async (request, reply) => {
+  app.get("/starred/export-csv", async (request, reply) => {
     const csv = services.csvExport.exportAllStarred();
-    reply.header('Content-Disposition', 'attachment; filename="lineage_starred_reports.csv"');
-    reply.type('text/csv');
+    reply.header(
+      "Content-Disposition",
+      'attachment; filename="lineage_starred_reports.csv"',
+    );
+    reply.type("text/csv");
     return csv;
   });
 
   // GET /api/reports/starred/export-html - Export only starred reports to HTML
-  app.get('/starred/export-html', async (request, reply) => {
+  app.get("/starred/export-html", async (request, reply) => {
     // Get starred template reports
     const starredReports = repos.report.findStarred();
-    const completedStarred = starredReports.filter(r => r.status === 'COMPLETED');
-    const reportIds = new Set(completedStarred.map(r => r.id!));
+    const completedStarred = starredReports.filter(
+      (r) => r.status === "COMPLETED",
+    );
+    const reportIds = new Set(completedStarred.map((r) => r.id!));
 
     // Get starred linked reports and find their templates
     const starredLinked = repos.linkedReport.findStarred();
     for (const linked of starredLinked) {
       // Find the template report by matching the path
       const allReports = repos.report.findAll();
-      const template = allReports.find(r =>
-        r.status === 'COMPLETED' &&
-        (r.filePath === linked.templatePath ||
-         r.filePath.endsWith(linked.templatePath) ||
-         linked.templatePath.endsWith(r.filePath))
+      const template = allReports.find(
+        (r) =>
+          r.status === "COMPLETED" &&
+          (r.filePath === linked.templatePath ||
+            r.filePath.endsWith(linked.templatePath) ||
+            linked.templatePath.endsWith(r.filePath)),
       );
       if (template && template.id) {
         reportIds.add(template.id);
@@ -93,24 +117,27 @@ export async function reportsRoutes(app: FastifyInstance, services: Services, re
 
     if (reportIds.size === 0) {
       reply.status(404);
-      return { error: 'No starred reports found' };
+      return { error: "No starred reports found" };
     }
 
     const html = services.htmlExport.exportStarredAsHtml(Array.from(reportIds));
 
-    reply.header('Content-Disposition', 'attachment; filename="lineage_starred_reports.html"');
-    reply.type('text/html');
+    reply.header(
+      "Content-Disposition",
+      'attachment; filename="lineage_starred_reports.html"',
+    );
+    reply.type("text/html");
     return html;
   });
 
   // GET /api/reports/:id
-  app.get('/:id', async (request, reply) => {
+  app.get("/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const report = repos.report.findById(parseInt(id, 10));
 
     if (!report) {
       reply.status(404);
-      return { error: 'Report not found' };
+      return { error: "Report not found" };
     }
 
     return {
@@ -118,43 +145,45 @@ export async function reportsRoutes(app: FastifyInstance, services: Services, re
       fileName: report.fileName,
       filePath: report.filePath,
       reportName: report.reportName || report.fileName,
-      source: report.source || 'FILES',
+      source: report.source || "FILES",
       status: report.status,
-      lastRunAt: report.lastRunAt ? dayjs(report.lastRunAt).format('MMM D, YYYY h:mm A') : '',
-      errorMessage: report.errorMessage || '',
+      lastRunAt: report.lastRunAt
+        ? dayjs(report.lastRunAt).format("MMM D, YYYY h:mm A")
+        : "",
+      errorMessage: report.errorMessage || "",
     };
   });
 
   // GET /api/reports/:id/lineage
-  app.get('/:id/lineage', async (request, reply) => {
+  app.get("/:id/lineage", async (request, reply) => {
     const { id } = request.params as { id: string };
 
     try {
       return services.lineage.getLineageGraph(parseInt(id, 10));
     } catch (error) {
       reply.status(404);
-      return { error: 'Report not found' };
+      return { error: "Report not found" };
     }
   });
 
   // GET /api/reports/:id/tables
-  app.get('/:id/tables', async (request, reply) => {
+  app.get("/:id/tables", async (request, reply) => {
     const { id } = request.params as { id: string };
 
     try {
       return services.lineage.getSourceTables(parseInt(id, 10));
     } catch (error) {
       reply.status(404);
-      return { error: 'Report not found' };
+      return { error: "Report not found" };
     }
   });
 
   // GET /api/reports/:id/datasources
-  app.get('/:id/datasources', async (request) => {
+  app.get("/:id/datasources", async (request) => {
     const { id } = request.params as { id: string };
     const sources = repos.dataSource.findByReportId(parseInt(id, 10));
 
-    return sources.map(ds => {
+    return sources.map((ds) => {
       // Look up metadata from shared_data_sources table using reference path
       let metadataServer: string | null = null;
       let metadataDatabase: string | null = null;
@@ -183,7 +212,7 @@ export async function reportsRoutes(app: FastifyInstance, services: Services, re
   });
 
   // GET /api/reports/procs/:id
-  app.get('/procs/:id', async (request, reply) => {
+  app.get("/procs/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const { name } = request.query as { name?: string };
 
@@ -200,7 +229,7 @@ export async function reportsRoutes(app: FastifyInstance, services: Services, re
     if (!proc) {
       console.warn(`Stored procedure not found: id=${id}, name=${name}`);
       reply.status(404);
-      return { error: 'Stored procedure not found' };
+      return { error: "Stored procedure not found" };
     }
 
     return {
@@ -208,12 +237,12 @@ export async function reportsRoutes(app: FastifyInstance, services: Services, re
       schemaName: proc.schemaName,
       procName: proc.procName,
       fullName: `${proc.schemaName}.${proc.procName}`,
-      definition: proc.definition || '',
+      definition: proc.definition || "",
     };
   });
 
   // GET /api/reports/views/:id
-  app.get('/views/:id', async (request, reply) => {
+  app.get("/views/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const { name } = request.query as { name?: string };
 
@@ -230,7 +259,7 @@ export async function reportsRoutes(app: FastifyInstance, services: Services, re
     if (!view) {
       console.warn(`View not found: id=${id}, name=${name}`);
       reply.status(404);
-      return { error: 'View not found' };
+      return { error: "View not found" };
     }
 
     return {
@@ -238,12 +267,12 @@ export async function reportsRoutes(app: FastifyInstance, services: Services, re
       schemaName: view.schemaName,
       viewName: view.viewName,
       fullName: `${view.schemaName}.${view.viewName}`,
-      definition: view.definition || '',
+      definition: view.definition || "",
     };
   });
 
   // GET /api/reports/shared-datasets/:id
-  app.get('/shared-datasets/:id', async (request, reply) => {
+  app.get("/shared-datasets/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const { name } = request.query as { name?: string };
 
@@ -260,90 +289,109 @@ export async function reportsRoutes(app: FastifyInstance, services: Services, re
     if (!sd) {
       console.warn(`SharedDataset not found: id=${id}, name=${name}`);
       reply.status(404);
-      return { error: 'SharedDataset not found' };
+      return { error: "SharedDataset not found" };
     }
 
     return {
       id: sd.id,
       datasetName: sd.datasetName,
-      datasetPath: sd.datasetPath || '',
-      commandType: sd.commandType || '',
-      definition: sd.commandText || '',
+      datasetPath: sd.datasetPath || "",
+      commandType: sd.commandType || "",
+      definition: sd.commandText || "",
     };
   });
 
   // GET /api/reports/:id/export
-  app.get('/:id/export', async (request, reply) => {
+  app.get("/:id/export", async (request, reply) => {
     const { id } = request.params as { id: string };
 
     try {
       const csv = services.lineage.exportLineageToCsv(parseInt(id, 10));
       const report = repos.report.findById(parseInt(id, 10));
-      const fileName = report?.reportName?.replace(/[^a-zA-Z0-9]/g, '_') || `report_${id}`;
+      const fileName =
+        report?.reportName?.replace(/[^a-zA-Z0-9]/g, "_") || `report_${id}`;
 
-      reply.header('Content-Disposition', `attachment; filename="lineage_${fileName}.csv"`);
-      reply.type('text/csv');
+      reply.header(
+        "Content-Disposition",
+        `attachment; filename="lineage_${fileName}.csv"`,
+      );
+      reply.type("text/csv");
       return csv;
     } catch (error) {
       reply.status(404);
-      return { error: 'Report not found' };
+      return { error: "Report not found" };
     }
   });
 
   // GET /api/reports/export-all
-  app.get('/export-all', async (request, reply) => {
+  app.get("/export-all", async (request, reply) => {
     const csv = services.lineage.exportAllLineageToCsv();
 
-    reply.header('Content-Disposition', 'attachment; filename="lineage_all_reports.csv"');
-    reply.type('text/csv');
+    reply.header(
+      "Content-Disposition",
+      'attachment; filename="lineage_all_reports.csv"',
+    );
+    reply.type("text/csv");
     return csv;
   });
 
   // GET /api/reports/export-all-html
-  app.get('/export-all-html', async (request, reply) => {
+  app.get("/export-all-html", async (request, reply) => {
     const html = services.htmlExport.exportAllAsHtml();
 
-    reply.header('Content-Disposition', 'attachment; filename="lineage-all-reports.html"');
-    reply.type('text/html');
+    reply.header(
+      "Content-Disposition",
+      'attachment; filename="lineage-all-reports.html"',
+    );
+    reply.type("text/html");
     return html;
   });
 
   // GET /api/reports/:id/export-html
-  app.get('/:id/export-html', async (request, reply) => {
+  app.get("/:id/export-html", async (request, reply) => {
     const { id } = request.params as { id: string };
 
     try {
-      const html = services.htmlExport.exportSingleReportAsHtml(parseInt(id, 10));
+      const html = services.htmlExport.exportSingleReportAsHtml(
+        parseInt(id, 10),
+      );
       const report = repos.report.findById(parseInt(id, 10));
-      const fileName = report?.reportName?.replace(/[^a-zA-Z0-9]/g, '_') || `report_${id}`;
+      const fileName =
+        report?.reportName?.replace(/[^a-zA-Z0-9]/g, "_") || `report_${id}`;
 
-      reply.header('Content-Disposition', `attachment; filename="lineage_${fileName}.html"`);
-      reply.type('text/html');
+      reply.header(
+        "Content-Disposition",
+        `attachment; filename="lineage_${fileName}.html"`,
+      );
+      reply.type("text/html");
       return html;
     } catch (error) {
       reply.status(404);
-      return { error: 'Report not found' };
+      return { error: "Report not found" };
     }
   });
 
   // GET /api/reports/:id/executions - Get recent executions with parameters
-  app.get('/:id/executions', async (request, reply) => {
+  app.get("/:id/executions", async (request, reply) => {
     const { id } = request.params as { id: string };
     const { limit } = request.query as { limit?: string };
 
     const report = repos.report.findById(parseInt(id, 10));
     if (!report) {
       reply.status(404);
-      return { error: 'Report not found' };
+      return { error: "Report not found" };
     }
 
     // Get the report path from file path (format: /folder/subfolder/ReportName)
     const reportPath = report.filePath;
     const maxResults = limit ? parseInt(limit, 10) : 20;
 
-    const executions = repos.reportExecution.findByPathLimited(reportPath, maxResults);
+    const executions = repos.reportExecution.findByPathLimited(
+      reportPath,
+      maxResults,
+    );
 
-    return executions.map(e => ({
+    return executions.map((e) => ({
       id: e.id,
       executedAt: e.executedAt,
       status: e.status,
@@ -354,155 +402,217 @@ export async function reportsRoutes(app: FastifyInstance, services: Services, re
   });
 
   // GET /api/reports/unified-export - Unified CSV export with scope parameter
-  app.get('/unified-export', async (request, reply) => {
+  app.get("/unified-export", async (request, reply) => {
     const { scope } = request.query as { scope?: string };
 
     let csv: string;
     let fileName: string;
 
     switch (scope?.toLowerCase()) {
-      case 'pbi':
-      case 'powerbi':
+      case "pbi":
+      case "powerbi":
         csv = services.csvExport.exportPbi();
-        fileName = 'lineage_powerbi_reports.csv';
+        fileName = "lineage_powerbi_reports.csv";
         break;
-      case 'ssrs':
+      case "ssrs":
         csv = services.csvExport.exportSsrs();
-        fileName = 'lineage_ssrs_reports.csv';
+        fileName = "lineage_ssrs_reports.csv";
         break;
-      case 'both':
-      case 'all':
+      case "both":
+      case "all":
       default:
         csv = services.csvExport.exportAll();
-        fileName = 'lineage_all_reports.csv';
+        fileName = "lineage_all_reports.csv";
         break;
     }
 
-    reply.header('Content-Disposition', `attachment; filename="${fileName}"`);
-    reply.type('text/csv');
+    reply.header("Content-Disposition", `attachment; filename="${fileName}"`);
+    reply.type("text/csv");
     return csv;
   });
 
   // GET /api/reports/starred/export-all-csv - Export all starred reports (SSRS + PBI combined)
-  app.get('/starred/export-all-csv', async (request, reply) => {
+  app.get("/starred/export-all-csv", async (request, reply) => {
     const csv = services.csvExport.exportAllStarred();
-    reply.header('Content-Disposition', 'attachment; filename="lineage_all_starred_reports.csv"');
-    reply.type('text/csv');
+    reply.header(
+      "Content-Disposition",
+      'attachment; filename="lineage_all_starred_reports.csv"',
+    );
+    reply.type("text/csv");
     return csv;
   });
 
   // GET /api/reports/starred/custom-tables/export - Export custom tables from starred reports
-  app.get('/starred/custom-tables/export', async (request, reply) => {
+  app.get("/starred/custom-tables/export", async (request, reply) => {
     const csv = services.csvExport.exportCustomTablesFromStarred();
-    reply.header('Content-Disposition', 'attachment; filename="custom_tables_from_starred.csv"');
-    reply.type('text/csv');
+    reply.header(
+      "Content-Disposition",
+      'attachment; filename="custom_tables_from_starred.csv"',
+    );
+    reply.type("text/csv");
     return csv;
   });
 
   // GET /api/reports/starred/report-table-mapping/export - Export report-to-table mapping from starred reports
-  app.get('/starred/report-table-mapping/export', async (request, reply) => {
+  app.get("/starred/report-table-mapping/export", async (request, reply) => {
     const csv = services.csvExport.exportReportTableMapping();
-    reply.header('Content-Disposition', 'attachment; filename="report_table_mapping.csv"');
-    reply.type('text/csv');
+    reply.header(
+      "Content-Disposition",
+      'attachment; filename="report_table_mapping.csv"',
+    );
+    reply.type("text/csv");
     return csv;
   });
 
   // GET /api/reports/starred/unique-table-columns/export - Export unique table columns from starred reports
-  app.get('/starred/unique-table-columns/export', async (request, reply) => {
+  app.get("/starred/unique-table-columns/export", async (request, reply) => {
     const csv = services.csvExport.exportUniqueTableColumns();
-    reply.header('Content-Disposition', 'attachment; filename="unique_table_columns.csv"');
-    reply.type('text/csv');
+    reply.header(
+      "Content-Disposition",
+      'attachment; filename="unique_table_columns.csv"',
+    );
+    reply.type("text/csv");
     return csv;
   });
 
   // GET /api/reports/unified-export-excel - Unified Excel export with 3 sheets (Lineage, Custom Tables by Report, Unique Custom Tables)
-  app.get('/unified-export-excel', async (request, reply) => {
-    const { scope, starred } = request.query as { scope?: string; starred?: string };
+  app.get("/unified-export-excel", async (request, reply) => {
+    const { scope, starred } = request.query as {
+      scope?: string;
+      starred?: string;
+    };
 
-    let exportScope: 'SSRS' | 'PowerBI' | 'Both';
+    let exportScope: "SSRS" | "PowerBI" | "Both";
     let fileName: string;
 
     switch (scope?.toLowerCase()) {
-      case 'pbi':
-      case 'powerbi':
-        exportScope = 'PowerBI';
-        fileName = 'lineage_powerbi_reports';
+      case "pbi":
+      case "powerbi":
+        exportScope = "PowerBI";
+        fileName = "lineage_powerbi_reports";
         break;
-      case 'ssrs':
-        exportScope = 'SSRS';
-        fileName = 'lineage_ssrs_reports';
+      case "ssrs":
+        exportScope = "SSRS";
+        fileName = "lineage_ssrs_reports";
         break;
-      case 'both':
-      case 'all':
+      case "both":
+      case "all":
       default:
-        exportScope = 'Both';
-        fileName = 'lineage_all_reports';
+        exportScope = "Both";
+        fileName = "lineage_all_reports";
         break;
     }
 
-    const starredOnly = starred === 'true';
+    const starredOnly = starred === "true";
     if (starredOnly) {
-      fileName += '_starred';
+      fileName += "_starred";
     }
 
     const buffer = services.csvExport.exportAsExcel(exportScope, starredOnly);
 
-    reply.header('Content-Disposition', `attachment; filename="${fileName}.xlsx"`);
-    reply.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    reply.header(
+      "Content-Disposition",
+      `attachment; filename="${fileName}.xlsx"`,
+    );
+    reply.type(
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
     return reply.send(buffer);
   });
 
   // GET /api/reports/custom-tables-by-report/export - Export custom tables (ending with "+") by report
-  app.get('/custom-tables-by-report/export', async (request, reply) => {
-    const { scope, starred } = request.query as { scope?: string; starred?: string };
+  app.get("/custom-tables-by-report/export", async (request, reply) => {
+    const { scope, starred } = request.query as {
+      scope?: string;
+      starred?: string;
+    };
 
-    let exportScope: 'SSRS' | 'PowerBI' | 'Both';
+    let exportScope: "SSRS" | "PowerBI" | "Both";
     switch (scope?.toLowerCase()) {
-      case 'pbi':
-      case 'powerbi':
-        exportScope = 'PowerBI';
+      case "pbi":
+      case "powerbi":
+        exportScope = "PowerBI";
         break;
-      case 'ssrs':
-        exportScope = 'SSRS';
+      case "ssrs":
+        exportScope = "SSRS";
         break;
       default:
-        exportScope = 'Both';
+        exportScope = "Both";
         break;
     }
 
-    const starredOnly = starred === 'true';
-    const csv = services.csvExport.exportCustomTablesByReport(exportScope, starredOnly);
+    const starredOnly = starred === "true";
+    const csv = services.csvExport.exportCustomTablesByReport(
+      exportScope,
+      starredOnly,
+    );
 
-    const fileName = starredOnly ? 'custom_tables_by_report_starred.csv' : 'custom_tables_by_report.csv';
-    reply.header('Content-Disposition', `attachment; filename="${fileName}"`);
-    reply.type('text/csv');
+    const fileName = starredOnly
+      ? "custom_tables_by_report_starred.csv"
+      : "custom_tables_by_report.csv";
+    reply.header("Content-Disposition", `attachment; filename="${fileName}"`);
+    reply.type("text/csv");
     return csv;
   });
 
   // GET /api/reports/unique-custom-tables/export - Export unique custom tables (ending with "+")
-  app.get('/unique-custom-tables/export', async (request, reply) => {
-    const { scope, starred } = request.query as { scope?: string; starred?: string };
+  app.get("/unique-custom-tables/export", async (request, reply) => {
+    const { scope, starred } = request.query as {
+      scope?: string;
+      starred?: string;
+    };
 
-    let exportScope: 'SSRS' | 'PowerBI' | 'Both';
+    let exportScope: "SSRS" | "PowerBI" | "Both";
     switch (scope?.toLowerCase()) {
-      case 'pbi':
-      case 'powerbi':
-        exportScope = 'PowerBI';
+      case "pbi":
+      case "powerbi":
+        exportScope = "PowerBI";
         break;
-      case 'ssrs':
-        exportScope = 'SSRS';
+      case "ssrs":
+        exportScope = "SSRS";
         break;
       default:
-        exportScope = 'Both';
+        exportScope = "Both";
         break;
     }
 
-    const starredOnly = starred === 'true';
-    const csv = services.csvExport.exportUniqueCustomTables(exportScope, starredOnly);
+    const starredOnly = starred === "true";
+    const csv = services.csvExport.exportUniqueCustomTables(
+      exportScope,
+      starredOnly,
+    );
 
-    const fileName = starredOnly ? 'unique_custom_tables_starred.csv' : 'unique_custom_tables.csv';
-    reply.header('Content-Disposition', `attachment; filename="${fileName}"`);
-    reply.type('text/csv');
+    const fileName = starredOnly
+      ? "unique_custom_tables_starred.csv"
+      : "unique_custom_tables.csv";
+    reply.header("Content-Disposition", `attachment; filename="${fileName}"`);
+    reply.type("text/csv");
     return csv;
+  });
+
+  // GET /api/reports/cff/export - Export all custom fields from starred reports to CSV
+  app.get("/cff/export", async (request, reply) => {
+    const csv = services.cff.exportCffToCsv();
+    reply.header(
+      "Content-Disposition",
+      'attachment; filename="custom_field_usage.csv"',
+    );
+    reply.type("text/csv");
+    return csv;
+  });
+
+  // GET /api/reports/:id/cff - Get custom fields for a single report (JSON)
+  app.get("/:id/cff", async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    try {
+      const customFields = services.cff.findCustomFieldsForReport(
+        parseInt(id, 10),
+      );
+      return customFields;
+    } catch (error) {
+      reply.status(404);
+      return { error: "Report not found" };
+    }
   });
 }

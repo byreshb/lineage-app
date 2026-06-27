@@ -1,8 +1,8 @@
-import Database from 'better-sqlite3';
-import { MetadataStatus } from '../types/index.js';
-import dayjs from 'dayjs';
+import Database from "better-sqlite3";
+import { MetadataStatus } from "../types/index.js";
+import dayjs from "dayjs";
 
-const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss';
+const DATE_FORMAT = "YYYY-MM-DD HH:mm:ss";
 
 export class MetadataStatusRepository {
   private db: Database.Database;
@@ -27,27 +27,41 @@ export class MetadataStatusRepository {
   }
 
   get(): MetadataStatus | undefined {
-    const row = this.db.prepare('SELECT * FROM metadata_status WHERE id = 1').get();
+    const row = this.db
+      .prepare("SELECT * FROM metadata_status WHERE id = 1")
+      .get();
     return this.mapRow(row);
   }
 
   save(status: MetadataStatus): void {
-    this.db.prepare(`
+    this.db
+      .prepare(
+        `
       INSERT OR REPLACE INTO metadata_status (id, loaded_at, proc_count, view_count, table_count, shared_dataset_count, shared_data_source_count, linked_server_count, dependency_count)
       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      status.loadedAt || dayjs().format(DATE_FORMAT),
-      status.procCount,
-      status.viewCount,
-      status.tableCount,
-      status.sharedDatasetCount,
-      status.sharedDataSourceCount,
-      status.linkedServerCount,
-      status.dependencyCount
-    );
+    `,
+      )
+      .run(
+        status.loadedAt || dayjs().format(DATE_FORMAT),
+        status.procCount,
+        status.viewCount,
+        status.tableCount,
+        status.sharedDatasetCount,
+        status.sharedDataSourceCount,
+        status.linkedServerCount,
+        status.dependencyCount,
+      );
   }
 
-  updateCounts(procCount: number, viewCount: number, tableCount: number, sharedDatasetCount: number, sharedDataSourceCount: number, linkedServerCount: number, dependencyCount: number): void {
+  updateCounts(
+    procCount: number,
+    viewCount: number,
+    tableCount: number,
+    sharedDatasetCount: number,
+    sharedDataSourceCount: number,
+    linkedServerCount: number,
+    dependencyCount: number,
+  ): void {
     this.save({
       id: 1,
       loadedAt: dayjs().format(DATE_FORMAT),

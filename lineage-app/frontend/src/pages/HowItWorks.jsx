@@ -1045,6 +1045,118 @@ PowerBI,Sales Dashboard,,SalesData,PowerBI,,,bi.vSalesSummary,dbo.vSalesDetail,,
         </p>
       </section>
 
+      {/* Custom Field Finder (CFF) */}
+      <section className="doc-section">
+        <h2>Custom Field Finder (CFF)</h2>
+        <p>The CFF feature identifies columns from <strong>custom tables</strong> (tables ending with <code>+</code>) used across all starred reports.</p>
+
+        <div className="process-step">
+          <h3>What are Custom Tables?</h3>
+          <p>Custom tables are user-defined extensions to standard Syspro tables. They end with a <code>+</code> suffix:</p>
+          <ul>
+            <li><code>ArCustomer+</code> - Custom fields added to customer records</li>
+            <li><code>InvMaster+</code> - Custom inventory fields</li>
+            <li><code>WipMaster+</code> - Custom work-in-progress fields</li>
+          </ul>
+        </div>
+
+        <div className="process-step">
+          <h3>How CFF Works</h3>
+          <div className="flow-diagram">
+            <div className="flow-step">
+              <div className="step-number">1</div>
+              <div className="step-content">
+                <h4>Find Custom Tables</h4>
+                <p>Scan lineage for tables ending with +</p>
+              </div>
+            </div>
+            <div className="flow-arrow">→</div>
+            <div className="flow-step">
+              <div className="step-number">2</div>
+              <div className="step-content">
+                <h4>Trace Back</h4>
+                <p>Find all VIEWs/PROCs that use them</p>
+              </div>
+            </div>
+            <div className="flow-arrow">→</div>
+            <div className="flow-step">
+              <div className="step-number">3</div>
+              <div className="step-content">
+                <h4>Extract Columns</h4>
+                <p>Parse SQL to find column names</p>
+              </div>
+            </div>
+            <div className="flow-arrow">→</div>
+            <div className="flow-step">
+              <div className="step-number">4</div>
+              <div className="step-content">
+                <h4>Check Metadata</h4>
+                <p>Verify in SQL2 and TRN1</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="process-step">
+          <h3>CFF Export Columns</h3>
+          <table className="info-table">
+            <thead>
+              <tr>
+                <th>Column</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>ReportType</strong></td>
+                <td>SSRS or PowerBI</td>
+              </tr>
+              <tr>
+                <td><strong>ReportName</strong></td>
+                <td>Name of the report using this custom field</td>
+              </tr>
+              <tr>
+                <td><strong>EntityType</strong></td>
+                <td>VIEW, PROC, or DATASET - where the column is used</td>
+              </tr>
+              <tr>
+                <td><strong>EntityName</strong></td>
+                <td>Name of the view/proc containing the column</td>
+              </tr>
+              <tr>
+                <td><strong>CustomTableName</strong></td>
+                <td>The custom table (e.g., ArCustomer+)</td>
+              </tr>
+              <tr>
+                <td><strong>ColumnName</strong></td>
+                <td>Column being used from the custom table</td>
+              </tr>
+              <tr>
+                <td><strong>ExtractionStatus</strong></td>
+                <td>OK, DYNAMIC_SQL, PARSE_ERROR, or UNKNOWN</td>
+              </tr>
+              <tr>
+                <td><strong>InSQL2 / InNewSyspro</strong></td>
+                <td>Whether column exists in each system</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="process-step">
+          <h3>Using CFF Export</h3>
+          <ol>
+            <li>Star the reports you want to analyze</li>
+            <li>Go to <strong>Export → Custom Fields (CFF)</strong></li>
+            <li>CSV shows all custom columns used by starred reports</li>
+          </ol>
+          <p className="note">
+            <strong>Use Case:</strong> Before migrating to new Syspro, use CFF to identify which custom fields your reports depend on,
+            and whether those fields exist in the new system.
+          </p>
+        </div>
+      </section>
+
       {/* Example */}
       <section className="doc-section">
         <h2>Example: Complete Lineage Trace</h2>

@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import Database from "better-sqlite3";
 
 export interface PbiLineageEdge {
   id: number | null;
@@ -35,13 +35,13 @@ export class PbiLineageRepository {
   }
 
   findByReportId(pbiReportId: number): PbiLineageEdge[] {
-    const rows = this.db.prepare(
-      'SELECT * FROM pbi_lineage WHERE pbi_report_id = ? ORDER BY id'
-    ).all(pbiReportId);
+    const rows = this.db
+      .prepare("SELECT * FROM pbi_lineage WHERE pbi_report_id = ? ORDER BY id")
+      .all(pbiReportId);
     return rows.map((row) => this.mapRow(row)!);
   }
 
-  create(edge: Omit<PbiLineageEdge, 'id'>): PbiLineageEdge {
+  create(edge: Omit<PbiLineageEdge, "id">): PbiLineageEdge {
     const stmt = this.db.prepare(`
       INSERT INTO pbi_lineage (pbi_report_id, source_type, source_id, source_name, target_type, target_id, target_name, relationship)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -54,7 +54,7 @@ export class PbiLineageRepository {
       edge.targetType,
       edge.targetId,
       edge.targetName,
-      edge.relationship
+      edge.relationship,
     );
     return {
       id: result.lastInsertRowid as number,
@@ -63,15 +63,19 @@ export class PbiLineageRepository {
   }
 
   clearByReportId(pbiReportId: number): void {
-    this.db.prepare('DELETE FROM pbi_lineage WHERE pbi_report_id = ?').run(pbiReportId);
+    this.db
+      .prepare("DELETE FROM pbi_lineage WHERE pbi_report_id = ?")
+      .run(pbiReportId);
   }
 
   clear(): void {
-    this.db.prepare('DELETE FROM pbi_lineage').run();
+    this.db.prepare("DELETE FROM pbi_lineage").run();
   }
 
   countAll(): number {
-    const row = this.db.prepare('SELECT COUNT(*) as count FROM pbi_lineage').get() as any;
+    const row = this.db
+      .prepare("SELECT COUNT(*) as count FROM pbi_lineage")
+      .get() as any;
     return row?.count || 0;
   }
 }

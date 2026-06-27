@@ -1,7 +1,7 @@
-import { Repositories } from '../repositories/index.js';
-import { LineageService } from './lineage.service.js';
-import { PbiLineageService } from './pbi-lineage.service.js';
-import { LineageGraphDto, ReportExecution } from '../types/index.js';
+import { Repositories } from "../repositories/index.js";
+import { LineageService } from "./lineage.service.js";
+import { PbiLineageService } from "./pbi-lineage.service.js";
+import { LineageGraphDto, ReportExecution } from "../types/index.js";
 
 interface ExecutionData {
   executedAt: string;
@@ -30,7 +30,7 @@ export class HtmlExportService {
   constructor(
     private repos: Repositories,
     private lineageService: LineageService,
-    private pbiLineageService: PbiLineageService
+    private pbiLineageService: PbiLineageService,
   ) {}
 
   exportSingleReportAsHtml(reportId: number): string {
@@ -49,15 +49,18 @@ export class HtmlExportService {
     };
 
     // Store both ID and name so we can fall back to name lookup if ID is stale after metadata reload
-    const procEntries = new Map<number, string>();  // id -> name
-    const viewEntries = new Map<number, string>();  // id -> name
-    const sharedDatasetEntries = new Map<number, string>();  // id -> name
+    const procEntries = new Map<number, string>(); // id -> name
+    const viewEntries = new Map<number, string>(); // id -> name
+    const sharedDatasetEntries = new Map<number, string>(); // id -> name
 
     const lineage = this.lineageService.getLineageGraph(report.id!);
 
     // Get executions for this report
-    const executions = this.repos.reportExecution.findByPathLimited(report.filePath, 20);
-    const executionData: ExecutionData[] = executions.map(e => ({
+    const executions = this.repos.reportExecution.findByPathLimited(
+      report.filePath,
+      20,
+    );
+    const executionData: ExecutionData[] = executions.map((e) => ({
       executedAt: e.executedAt,
       status: e.status,
       requestType: e.requestType,
@@ -75,17 +78,18 @@ export class HtmlExportService {
 
     // Collect proc/view/shared dataset IDs and names for definitions
     for (const node of lineage.nodes) {
-      if (node.type === 'PROC' && node.id) {
+      if (node.type === "PROC" && node.id) {
         const match = node.id.match(/PROC_(\d+)/);
-        if (match) procEntries.set(parseInt(match[1], 10), node.name || '');
+        if (match) procEntries.set(parseInt(match[1], 10), node.name || "");
       }
-      if (node.type === 'VIEW' && node.id) {
+      if (node.type === "VIEW" && node.id) {
         const match = node.id.match(/VIEW_(\d+)/);
-        if (match) viewEntries.set(parseInt(match[1], 10), node.name || '');
+        if (match) viewEntries.set(parseInt(match[1], 10), node.name || "");
       }
-      if (node.type === 'SHARED_DATASET' && node.id) {
+      if (node.type === "SHARED_DATASET" && node.id) {
         const match = node.id.match(/SHARED_DATASET_(\d+)/);
-        if (match) sharedDatasetEntries.set(parseInt(match[1], 10), node.name || '');
+        if (match)
+          sharedDatasetEntries.set(parseInt(match[1], 10), node.name || "");
       }
     }
 
@@ -110,7 +114,8 @@ export class HtmlExportService {
       let sd = this.repos.sharedDataset.findById(sdId);
       if (!sd && sdName) sd = this.repos.sharedDataset.findByName(sdName);
       if (sd && sd.commandText) {
-        exportData.sharedDatasetDefinitions[`SHARED_DATASET_${sdId}`] = sd.commandText;
+        exportData.sharedDatasetDefinitions[`SHARED_DATASET_${sdId}`] =
+          sd.commandText;
       }
     }
 
@@ -120,7 +125,9 @@ export class HtmlExportService {
 
   exportAllAsHtml(): string {
     // 1. Get all completed reports
-    const reports = this.repos.report.findAll().filter(r => r.status === 'COMPLETED');
+    const reports = this.repos.report
+      .findAll()
+      .filter((r) => r.status === "COMPLETED");
 
     // 2. Build lineage data for each report
     const exportData: ExportData = {
@@ -131,17 +138,20 @@ export class HtmlExportService {
     };
 
     // Store both ID and name so we can fall back to name lookup if ID is stale after metadata reload
-    const procEntries = new Map<number, string>();  // id -> name
-    const viewEntries = new Map<number, string>();  // id -> name
-    const sharedDatasetEntries = new Map<number, string>();  // id -> name
+    const procEntries = new Map<number, string>(); // id -> name
+    const viewEntries = new Map<number, string>(); // id -> name
+    const sharedDatasetEntries = new Map<number, string>(); // id -> name
 
     for (const report of reports) {
       try {
         const lineage = this.lineageService.getLineageGraph(report.id!);
 
         // Get executions for this report
-        const executions = this.repos.reportExecution.findByPathLimited(report.filePath, 20);
-        const executionData: ExecutionData[] = executions.map(e => ({
+        const executions = this.repos.reportExecution.findByPathLimited(
+          report.filePath,
+          20,
+        );
+        const executionData: ExecutionData[] = executions.map((e) => ({
           executedAt: e.executedAt,
           status: e.status,
           requestType: e.requestType,
@@ -159,21 +169,25 @@ export class HtmlExportService {
 
         // Collect proc/view/shared dataset IDs and names for definitions
         for (const node of lineage.nodes) {
-          if (node.type === 'PROC' && node.id) {
+          if (node.type === "PROC" && node.id) {
             const match = node.id.match(/PROC_(\d+)/);
-            if (match) procEntries.set(parseInt(match[1], 10), node.name || '');
+            if (match) procEntries.set(parseInt(match[1], 10), node.name || "");
           }
-          if (node.type === 'VIEW' && node.id) {
+          if (node.type === "VIEW" && node.id) {
             const match = node.id.match(/VIEW_(\d+)/);
-            if (match) viewEntries.set(parseInt(match[1], 10), node.name || '');
+            if (match) viewEntries.set(parseInt(match[1], 10), node.name || "");
           }
-          if (node.type === 'SHARED_DATASET' && node.id) {
+          if (node.type === "SHARED_DATASET" && node.id) {
             const match = node.id.match(/SHARED_DATASET_(\d+)/);
-            if (match) sharedDatasetEntries.set(parseInt(match[1], 10), node.name || '');
+            if (match)
+              sharedDatasetEntries.set(parseInt(match[1], 10), node.name || "");
           }
         }
       } catch (err) {
-        console.warn(`Failed to get lineage for report ${report.fileName}:`, err);
+        console.warn(
+          `Failed to get lineage for report ${report.fileName}:`,
+          err,
+        );
       }
     }
 
@@ -198,7 +212,8 @@ export class HtmlExportService {
       let sd = this.repos.sharedDataset.findById(sdId);
       if (!sd && sdName) sd = this.repos.sharedDataset.findByName(sdName);
       if (sd && sd.commandText) {
-        exportData.sharedDatasetDefinitions[`SHARED_DATASET_${sdId}`] = sd.commandText;
+        exportData.sharedDatasetDefinitions[`SHARED_DATASET_${sdId}`] =
+          sd.commandText;
       }
     }
 
@@ -209,11 +224,11 @@ export class HtmlExportService {
   exportStarredAsHtml(reportIds: number[]): string {
     // 1. Get reports by IDs
     const reports = reportIds
-      .map(id => this.repos.report.findById(id))
-      .filter(r => r && r.status === 'COMPLETED');
+      .map((id) => this.repos.report.findById(id))
+      .filter((r) => r && r.status === "COMPLETED");
 
     if (reports.length === 0) {
-      throw new Error('No starred reports found');
+      throw new Error("No starred reports found");
     }
 
     // 2. Build lineage data for each report
@@ -225,9 +240,9 @@ export class HtmlExportService {
     };
 
     // Store both ID and name so we can fall back to name lookup if ID is stale after metadata reload
-    const procEntries = new Map<number, string>();  // id -> name
-    const viewEntries = new Map<number, string>();  // id -> name
-    const sharedDatasetEntries = new Map<number, string>();  // id -> name
+    const procEntries = new Map<number, string>(); // id -> name
+    const viewEntries = new Map<number, string>(); // id -> name
+    const sharedDatasetEntries = new Map<number, string>(); // id -> name
 
     for (const report of reports) {
       if (!report) continue;
@@ -235,8 +250,11 @@ export class HtmlExportService {
         const lineage = this.lineageService.getLineageGraph(report.id!);
 
         // Get executions for this report
-        const executions = this.repos.reportExecution.findByPathLimited(report.filePath, 20);
-        const executionData: ExecutionData[] = executions.map(e => ({
+        const executions = this.repos.reportExecution.findByPathLimited(
+          report.filePath,
+          20,
+        );
+        const executionData: ExecutionData[] = executions.map((e) => ({
           executedAt: e.executedAt,
           status: e.status,
           requestType: e.requestType,
@@ -254,21 +272,25 @@ export class HtmlExportService {
 
         // Collect proc/view/shared dataset IDs and names for definitions
         for (const node of lineage.nodes) {
-          if (node.type === 'PROC' && node.id) {
+          if (node.type === "PROC" && node.id) {
             const match = node.id.match(/PROC_(\d+)/);
-            if (match) procEntries.set(parseInt(match[1], 10), node.name || '');
+            if (match) procEntries.set(parseInt(match[1], 10), node.name || "");
           }
-          if (node.type === 'VIEW' && node.id) {
+          if (node.type === "VIEW" && node.id) {
             const match = node.id.match(/VIEW_(\d+)/);
-            if (match) viewEntries.set(parseInt(match[1], 10), node.name || '');
+            if (match) viewEntries.set(parseInt(match[1], 10), node.name || "");
           }
-          if (node.type === 'SHARED_DATASET' && node.id) {
+          if (node.type === "SHARED_DATASET" && node.id) {
             const match = node.id.match(/SHARED_DATASET_(\d+)/);
-            if (match) sharedDatasetEntries.set(parseInt(match[1], 10), node.name || '');
+            if (match)
+              sharedDatasetEntries.set(parseInt(match[1], 10), node.name || "");
           }
         }
       } catch (err) {
-        console.warn(`Failed to get lineage for report ${report.fileName}:`, err);
+        console.warn(
+          `Failed to get lineage for report ${report.fileName}:`,
+          err,
+        );
       }
     }
 
@@ -293,7 +315,8 @@ export class HtmlExportService {
       let sd = this.repos.sharedDataset.findById(sdId);
       if (!sd && sdName) sd = this.repos.sharedDataset.findByName(sdName);
       if (sd && sd.commandText) {
-        exportData.sharedDatasetDefinitions[`SHARED_DATASET_${sdId}`] = sd.commandText;
+        exportData.sharedDatasetDefinitions[`SHARED_DATASET_${sdId}`] =
+          sd.commandText;
       }
     }
 
@@ -306,7 +329,7 @@ export class HtmlExportService {
    */
   exportPbiAllAsHtml(): string {
     const pbiReports = this.repos.pbiReport.findAll();
-    return this.buildPbiHtml(pbiReports, 'Power BI Report Lineage');
+    return this.buildPbiHtml(pbiReports, "Power BI Report Lineage");
   }
 
   /**
@@ -315,9 +338,9 @@ export class HtmlExportService {
   exportPbiStarredAsHtml(): string {
     const pbiReports = this.repos.pbiReport.findStarred();
     if (pbiReports.length === 0) {
-      throw new Error('No starred Power BI reports found');
+      throw new Error("No starred Power BI reports found");
     }
-    return this.buildPbiHtml(pbiReports, 'Power BI Report Lineage (Starred)');
+    return this.buildPbiHtml(pbiReports, "Power BI Report Lineage (Starred)");
   }
 
   /**
@@ -332,8 +355,8 @@ export class HtmlExportService {
     };
 
     // Store both ID and name so we can fall back to name lookup if ID is stale after metadata reload
-    const procEntries = new Map<number, string>();  // id -> name
-    const viewEntries = new Map<number, string>();  // id -> name
+    const procEntries = new Map<number, string>(); // id -> name
+    const viewEntries = new Map<number, string>(); // id -> name
 
     for (const report of pbiReports) {
       try {
@@ -345,22 +368,26 @@ export class HtmlExportService {
           reportId: report.id!,
           reportName: report.reportName,
           lastAnalyzed: report.createdAt || null,
-          nodes: lineage.nodes.map(n => ({
+          nodes: lineage.nodes.map((n) => ({
             id: n.id,
             name: n.name,
-            type: n.type === 'PBI_REPORT' ? 'REPORT' :
-                  n.type === 'PBI_TABLE' ? 'DATASET' : n.type,
+            type:
+              n.type === "PBI_REPORT"
+                ? "REPORT"
+                : n.type === "PBI_TABLE"
+                  ? "DATASET"
+                  : n.type,
             schema: n.schema || null,
             database: n.database || null,
             server: null,
             hasPk: null,
             sourceType: null,
           })),
-          edges: lineage.edges.map(e => ({
+          edges: lineage.edges.map((e) => ({
             source: e.source,
             target: e.target,
             relationship: e.relationship,
-            discoveryMethod: 'REGEX' as const,
+            discoveryMethod: "REGEX" as const,
           })),
           warnings: [],
         };
@@ -368,24 +395,27 @@ export class HtmlExportService {
         exportData.reports.push({
           id: report.id!,
           reportName: report.reportName,
-          reportPath: '',
+          reportPath: "",
           lineage: convertedLineage,
           executions: [], // PBI doesn't have execution history
         });
 
         // Collect proc/view IDs and names for definitions
         for (const node of lineage.nodes) {
-          if (node.type === 'PROC' && node.id) {
+          if (node.type === "PROC" && node.id) {
             const match = node.id.match(/PROC_(\d+)/);
-            if (match) procEntries.set(parseInt(match[1], 10), node.name || '');
+            if (match) procEntries.set(parseInt(match[1], 10), node.name || "");
           }
-          if (node.type === 'VIEW' && node.id) {
+          if (node.type === "VIEW" && node.id) {
             const match = node.id.match(/VIEW_(\d+)/);
-            if (match) viewEntries.set(parseInt(match[1], 10), node.name || '');
+            if (match) viewEntries.set(parseInt(match[1], 10), node.name || "");
           }
         }
       } catch (err) {
-        console.warn(`Failed to get lineage for PBI report ${report.reportName}:`, err);
+        console.warn(
+          `Failed to get lineage for PBI report ${report.reportName}:`,
+          err,
+        );
       }
     }
 
@@ -409,10 +439,13 @@ export class HtmlExportService {
     return this.generateHtml(exportData, title);
   }
 
-  private generateHtml(data: ExportData, title: string = 'SSRS Report Lineage'): string {
+  private generateHtml(
+    data: ExportData,
+    title: string = "SSRS Report Lineage",
+  ): string {
     const jsonData = JSON.stringify(data, null, 2)
-      .replace(/</g, '\\u003c')  // Escape for script tag safety
-      .replace(/>/g, '\\u003e');
+      .replace(/</g, "\\u003c") // Escape for script tag safety
+      .replace(/>/g, "\\u003e");
 
     return `<!DOCTYPE html>
 <html lang="en">

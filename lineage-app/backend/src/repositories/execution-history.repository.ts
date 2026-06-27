@@ -1,5 +1,5 @@
-import Database from 'better-sqlite3';
-import { ReportExecutionHistory } from '../types/index.js';
+import Database from "better-sqlite3";
+import { ReportExecutionHistory } from "../types/index.js";
 
 export class ExecutionHistoryRepository {
   private db: Database.Database;
@@ -26,17 +26,23 @@ export class ExecutionHistoryRepository {
   }
 
   findById(id: number): ReportExecutionHistory | undefined {
-    const row = this.db.prepare('SELECT * FROM report_execution_history WHERE id = ?').get(id);
+    const row = this.db
+      .prepare("SELECT * FROM report_execution_history WHERE id = ?")
+      .get(id);
     return this.mapRow(row);
   }
 
   findByPath(path: string): ReportExecutionHistory | undefined {
-    const row = this.db.prepare('SELECT * FROM report_execution_history WHERE report_path = ?').get(path);
+    const row = this.db
+      .prepare("SELECT * FROM report_execution_history WHERE report_path = ?")
+      .get(path);
     return this.mapRow(row);
   }
 
   findAll(): ReportExecutionHistory[] {
-    const rows = this.db.prepare('SELECT * FROM report_execution_history ORDER BY report_path').all();
+    const rows = this.db
+      .prepare("SELECT * FROM report_execution_history ORDER BY report_path")
+      .all();
     return rows.map((row) => this.mapRow(row)!);
   }
 
@@ -57,7 +63,7 @@ export class ExecutionHistoryRepository {
       history.successCount,
       history.errorCount,
       history.interactiveCount,
-      history.subscriptionCount
+      history.subscriptionCount,
     );
     if (history.id === null) {
       history.id = result.lastInsertRowid as number;
@@ -72,31 +78,35 @@ export class ExecutionHistoryRepository {
        days_since_last_run, success_count, error_count, interactive_count, subscription_count)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const insertMany = this.db.transaction((items: ReportExecutionHistory[]) => {
-      for (const h of items) {
-        stmt.run(
-          h.reportName,
-          h.reportPath,
-          h.executionCount,
-          h.lastExecutedAt,
-          h.firstExecutedAt,
-          h.daysSinceLastRun,
-          h.successCount,
-          h.errorCount,
-          h.interactiveCount,
-          h.subscriptionCount
-        );
-      }
-    });
+    const insertMany = this.db.transaction(
+      (items: ReportExecutionHistory[]) => {
+        for (const h of items) {
+          stmt.run(
+            h.reportName,
+            h.reportPath,
+            h.executionCount,
+            h.lastExecutedAt,
+            h.firstExecutedAt,
+            h.daysSinceLastRun,
+            h.successCount,
+            h.errorCount,
+            h.interactiveCount,
+            h.subscriptionCount,
+          );
+        }
+      },
+    );
     insertMany(historyRecords);
   }
 
   count(): number {
-    const row = this.db.prepare('SELECT COUNT(*) as count FROM report_execution_history').get() as any;
+    const row = this.db
+      .prepare("SELECT COUNT(*) as count FROM report_execution_history")
+      .get() as any;
     return row?.count || 0;
   }
 
   deleteAll(): void {
-    this.db.prepare('DELETE FROM report_execution_history').run();
+    this.db.prepare("DELETE FROM report_execution_history").run();
   }
 }

@@ -1,5 +1,10 @@
-import Database from 'better-sqlite3';
-import { LineageEdge, NodeType, Relationship, DiscoveryMethod } from '../types/index.js';
+import Database from "better-sqlite3";
+import {
+  LineageEdge,
+  NodeType,
+  Relationship,
+  DiscoveryMethod,
+} from "../types/index.js";
 
 export class LineageRepository {
   private db: Database.Database;
@@ -25,17 +30,23 @@ export class LineageRepository {
   }
 
   findByReportId(reportId: number): LineageEdge[] {
-    const rows = this.db.prepare('SELECT * FROM lineage WHERE report_id = ?').all(reportId);
+    const rows = this.db
+      .prepare("SELECT * FROM lineage WHERE report_id = ?")
+      .all(reportId);
     return rows.map((row) => this.mapRow(row)!);
   }
 
   findById(id: number): LineageEdge | undefined {
-    const row = this.db.prepare('SELECT * FROM lineage WHERE id = ?').get(id);
+    const row = this.db.prepare("SELECT * FROM lineage WHERE id = ?").get(id);
     return this.mapRow(row);
   }
 
   findTableEdgesByReportId(reportId: number): LineageEdge[] {
-    const rows = this.db.prepare("SELECT * FROM lineage WHERE report_id = ? AND target_type IN ('TABLE', 'TABLE_NOT_FOUND')").all(reportId);
+    const rows = this.db
+      .prepare(
+        "SELECT * FROM lineage WHERE report_id = ? AND target_type IN ('TABLE', 'TABLE_NOT_FOUND')",
+      )
+      .all(reportId);
     return rows.map((row) => this.mapRow(row)!);
   }
 
@@ -54,7 +65,7 @@ export class LineageRepository {
         edge.targetId,
         edge.targetName,
         edge.relationship,
-        edge.discoveryMethod || 'REGEX'
+        edge.discoveryMethod || "REGEX",
       );
       edge.id = result.lastInsertRowid as number;
     } else {
@@ -71,8 +82,8 @@ export class LineageRepository {
         edge.targetId,
         edge.targetName,
         edge.relationship,
-        edge.discoveryMethod || 'REGEX',
-        edge.id
+        edge.discoveryMethod || "REGEX",
+        edge.id,
       );
     }
     return edge;
@@ -94,7 +105,7 @@ export class LineageRepository {
           edge.targetId,
           edge.targetName,
           edge.relationship,
-          edge.discoveryMethod || 'REGEX'
+          edge.discoveryMethod || "REGEX",
         );
       }
     });
@@ -102,10 +113,10 @@ export class LineageRepository {
   }
 
   deleteByReportId(reportId: number): void {
-    this.db.prepare('DELETE FROM lineage WHERE report_id = ?').run(reportId);
+    this.db.prepare("DELETE FROM lineage WHERE report_id = ?").run(reportId);
   }
 
   deleteById(id: number): void {
-    this.db.prepare('DELETE FROM lineage WHERE id = ?').run(id);
+    this.db.prepare("DELETE FROM lineage WHERE id = ?").run(id);
   }
 }

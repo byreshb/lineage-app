@@ -1,5 +1,5 @@
-import Database from 'better-sqlite3';
-import { SourceTable, SourceType } from '../types/index.js';
+import Database from "better-sqlite3";
+import { SourceTable, SourceType } from "../types/index.js";
 
 export class TableRepository {
   private db: Database.Database;
@@ -22,38 +22,59 @@ export class TableRepository {
   }
 
   findAll(): SourceTable[] {
-    const rows = this.db.prepare('SELECT * FROM source_tables ORDER BY server, database_name, schema_name, table_name').all();
+    const rows = this.db
+      .prepare(
+        "SELECT * FROM source_tables ORDER BY server, database_name, schema_name, table_name",
+      )
+      .all();
     return rows.map((row) => this.mapRow(row)!);
   }
 
   findById(id: number): SourceTable | undefined {
-    const row = this.db.prepare('SELECT * FROM source_tables WHERE id = ?').get(id);
+    const row = this.db
+      .prepare("SELECT * FROM source_tables WHERE id = ?")
+      .get(id);
     return this.mapRow(row);
   }
 
-  findByName(tableName: string, preferredSchema?: string): SourceTable | undefined {
+  findByName(
+    tableName: string,
+    preferredSchema?: string,
+  ): SourceTable | undefined {
     // Handle schema-prefixed names like "dbo.DateDim"
-    if (tableName.includes('.')) {
-      const parts = tableName.split('.');
+    if (tableName.includes(".")) {
+      const parts = tableName.split(".");
       const schema = parts[0];
-      const name = parts.slice(1).join('.');
-      const row = this.db.prepare('SELECT * FROM source_tables WHERE schema_name = ? AND table_name = ?').get(schema, name);
+      const name = parts.slice(1).join(".");
+      const row = this.db
+        .prepare(
+          "SELECT * FROM source_tables WHERE schema_name = ? AND table_name = ?",
+        )
+        .get(schema, name);
       if (row) return this.mapRow(row);
     }
 
     // Try preferred schema first if provided
     if (preferredSchema) {
-      const row = this.db.prepare('SELECT * FROM source_tables WHERE schema_name = ? AND table_name = ?').get(preferredSchema, tableName);
+      const row = this.db
+        .prepare(
+          "SELECT * FROM source_tables WHERE schema_name = ? AND table_name = ?",
+        )
+        .get(preferredSchema, tableName);
       if (row) return this.mapRow(row);
     }
 
     // Find all matches and prefer certain schemas
-    const rows = this.db.prepare('SELECT * FROM source_tables WHERE table_name = ? ORDER BY schema_name').all(tableName);
+    const rows = this.db
+      .prepare(
+        "SELECT * FROM source_tables WHERE table_name = ? ORDER BY schema_name",
+      )
+      .all(tableName);
     if (rows.length === 0) return undefined;
     if (rows.length === 1) return this.mapRow(rows[0]);
 
     // Prefer syspro > dbo > bi > stage > other schemas
-    const schemaPreference = ['syspro', 'dbo', 'bi'];
+    const schemaPreference = ["syspro", "dbo", "bi"];
     for (const schema of schemaPreference) {
       const match = rows.find((r: any) => r.schema_name === schema);
       if (match) return this.mapRow(match);
@@ -62,32 +83,53 @@ export class TableRepository {
     return this.mapRow(rows[0]);
   }
 
-  findBySchemaAndName(schemaName: string, tableName: string): SourceTable | undefined {
-    const row = this.db.prepare('SELECT * FROM source_tables WHERE schema_name = ? AND table_name = ?').get(schemaName, tableName);
+  findBySchemaAndName(
+    schemaName: string,
+    tableName: string,
+  ): SourceTable | undefined {
+    const row = this.db
+      .prepare(
+        "SELECT * FROM source_tables WHERE schema_name = ? AND table_name = ?",
+      )
+      .get(schemaName, tableName);
     return this.mapRow(row);
   }
 
-  findByFullName(server: string, databaseName: string, schemaName: string, tableName: string): SourceTable | undefined {
-    const row = this.db.prepare('SELECT * FROM source_tables WHERE server = ? AND database_name = ? AND schema_name = ? AND table_name = ?')
+  findByFullName(
+    server: string,
+    databaseName: string,
+    schemaName: string,
+    tableName: string,
+  ): SourceTable | undefined {
+    const row = this.db
+      .prepare(
+        "SELECT * FROM source_tables WHERE server = ? AND database_name = ? AND schema_name = ? AND table_name = ?",
+      )
       .get(server, databaseName, schemaName, tableName);
     return this.mapRow(row);
   }
 
   findByNameLike(pattern: string): SourceTable[] {
-    const rows = this.db.prepare('SELECT * FROM source_tables WHERE table_name LIKE ?').all(`%${pattern}%`);
+    const rows = this.db
+      .prepare("SELECT * FROM source_tables WHERE table_name LIKE ?")
+      .all(`%${pattern}%`);
     return rows.map((row) => this.mapRow(row)!);
   }
 
   // Find all schemas where a table exists (for tables referenced without schema)
   findAllSchemasForTable(tableName: string): string[] {
-    const rows = this.db.prepare(
-      'SELECT DISTINCT schema_name FROM source_tables WHERE table_name = ? ORDER BY schema_name'
-    ).all(tableName) as { schema_name: string }[];
-    return rows.map(r => r.schema_name);
+    const rows = this.db
+      .prepare(
+        "SELECT DISTINCT schema_name FROM source_tables WHERE table_name = ? ORDER BY schema_name",
+      )
+      .all(tableName) as { schema_name: string }[];
+    return rows.map((r) => r.schema_name);
   }
 
   findByServer(server: string): SourceTable[] {
-    const rows = this.db.prepare('SELECT * FROM source_tables WHERE server = ?').all(server);
+    const rows = this.db
+      .prepare("SELECT * FROM source_tables WHERE server = ?")
+      .all(server);
     return rows.map((row) => this.mapRow(row)!);
   }
 
@@ -102,7 +144,7 @@ export class TableRepository {
       table.schemaName,
       table.tableName,
       table.hasPk === null ? null : table.hasPk ? 1 : 0,
-      table.sourceType
+      table.sourceType,
     );
     if (table.id === null) {
       table.id = result.lastInsertRowid as number;
@@ -123,7 +165,7 @@ export class TableRepository {
           table.schemaName,
           table.tableName,
           table.hasPk === null ? null : table.hasPk ? 1 : 0,
-          table.sourceType
+          table.sourceType,
         );
       }
     });
@@ -131,12 +173,14 @@ export class TableRepository {
   }
 
   count(): number {
-    const row = this.db.prepare('SELECT COUNT(*) as count FROM source_tables').get() as any;
+    const row = this.db
+      .prepare("SELECT COUNT(*) as count FROM source_tables")
+      .get() as any;
     return row?.count || 0;
   }
 
   deleteAll(): void {
-    this.db.prepare('DELETE FROM source_tables').run();
+    this.db.prepare("DELETE FROM source_tables").run();
   }
 
   /**
@@ -154,7 +198,9 @@ export class TableRepository {
     tableName: string;
     hasPk: boolean | null;
   }> {
-    const rows = this.db.prepare(`
+    const rows = this.db
+      .prepare(
+        `
       SELECT DISTINCT
         r.id as report_id,
         COALESCE(r.report_name, r.file_name) as report_name,
@@ -172,15 +218,17 @@ export class TableRepository {
         AND l.target_type = 'TABLE'
         AND st.table_name LIKE '%+'
       ORDER BY r.report_name, st.table_name
-    `).all() as any[];
+    `,
+      )
+      .all() as any[];
 
-    return rows.map(row => ({
+    return rows.map((row) => ({
       reportId: row.report_id,
       reportName: row.report_name,
-      reportPath: row.report_path || '',
-      server: row.server || '',
-      databaseName: row.database_name || '',
-      schemaName: row.schema_name || '',
+      reportPath: row.report_path || "",
+      server: row.server || "",
+      databaseName: row.database_name || "",
+      schemaName: row.schema_name || "",
       tableName: row.table_name,
       hasPk: row.has_pk === 1 ? true : row.has_pk === 0 ? false : null,
     }));

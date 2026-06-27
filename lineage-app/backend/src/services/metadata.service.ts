@@ -1,8 +1,8 @@
-import fs from 'fs';
-import path from 'path';
-import { resolvedPaths } from '../config/index.js';
-import { Repositories } from '../repositories/index.js';
-import { MetadataStatusDto } from '../types/index.js';
+import fs from "fs";
+import path from "path";
+import { resolvedPaths } from "../config/index.js";
+import { Repositories } from "../repositories/index.js";
+import { MetadataStatusDto } from "../types/index.js";
 import {
   loadStoredProcedures,
   loadViews,
@@ -17,9 +17,9 @@ import {
   loadTrn1Schema,
   loadSql2Columns,
   loadTrn1Columns,
-} from '../parsers/csv.loader.js';
-import { extractTables } from '../parsers/sql.analyzer.js';
-import dayjs from 'dayjs';
+} from "../parsers/csv.loader.js";
+import { extractTables } from "../parsers/sql.analyzer.js";
+import dayjs from "dayjs";
 
 export class MetadataService {
   constructor(private repos: Repositories) {}
@@ -47,12 +47,24 @@ export class MetadataService {
     this.repos.column.deleteAllSql2();
     this.repos.column.deleteAllTrn1();
 
-    let procCount = 0, viewCount = 0, tableCount = 0, linkedReportCount = 0;
-    let sharedDatasetCount = 0, sharedDataSourceCount = 0, linkedServerCount = 0, dependencyCount = 0;
+    let procCount = 0,
+      viewCount = 0,
+      tableCount = 0,
+      linkedReportCount = 0;
+    let sharedDatasetCount = 0,
+      sharedDataSourceCount = 0,
+      linkedServerCount = 0,
+      dependencyCount = 0;
     let executionHistoryCount = 0;
 
     // Load stored procedures
-    const procsFile = this.findFile(folder, 'sysproreporting_stored_procs.csv', 'ssrs_stored_procs.csv', 'stored_proc', 'procs.csv');
+    const procsFile = this.findFile(
+      folder,
+      "sysproreporting_stored_procs.csv",
+      "ssrs_stored_procs.csv",
+      "stored_proc",
+      "procs.csv",
+    );
     if (procsFile) {
       const procs = loadStoredProcedures(procsFile);
       this.repos.storedProc.saveAll(procs);
@@ -60,7 +72,7 @@ export class MetadataService {
     }
 
     // Load views
-    const viewsFile = this.findFile(folder, 'all_views.csv', 'views.csv');
+    const viewsFile = this.findFile(folder, "all_views.csv", "views.csv");
     if (viewsFile) {
       const views = loadViews(viewsFile);
       this.repos.view.saveAll(views);
@@ -68,7 +80,12 @@ export class MetadataService {
     }
 
     // Load tables
-    const tablesFile = this.findFile(folder, 'tables_with_pks.csv', 'tables.csv', 'all_tables.csv');
+    const tablesFile = this.findFile(
+      folder,
+      "tables_with_pks.csv",
+      "tables.csv",
+      "all_tables.csv",
+    );
     if (tablesFile) {
       const tables = loadTables(tablesFile);
       this.repos.table.saveAll(tables);
@@ -76,7 +93,7 @@ export class MetadataService {
     }
 
     // Load shared datasets
-    const sharedDatasetsFile = this.findFile(folder, 'shared_datasets.csv');
+    const sharedDatasetsFile = this.findFile(folder, "shared_datasets.csv");
     if (sharedDatasetsFile) {
       const datasets = loadSharedDatasets(sharedDatasetsFile);
       this.repos.sharedDataset.saveAll(datasets);
@@ -84,7 +101,10 @@ export class MetadataService {
     }
 
     // Load shared data sources (actual connection info from SSRS)
-    const sharedDataSourcesFile = this.findFile(folder, 'shared_datasources.csv');
+    const sharedDataSourcesFile = this.findFile(
+      folder,
+      "shared_datasources.csv",
+    );
     if (sharedDataSourcesFile) {
       const dataSources = loadSharedDataSources(sharedDataSourcesFile);
       this.repos.sharedDataSource.saveAll(dataSources);
@@ -92,7 +112,7 @@ export class MetadataService {
     }
 
     // Load linked servers
-    const linkedServersFile = this.findFile(folder, 'linked_servers.csv');
+    const linkedServersFile = this.findFile(folder, "linked_servers.csv");
     if (linkedServersFile) {
       const servers = loadLinkedServers(linkedServersFile);
       this.repos.linkedServer.saveAll(servers);
@@ -100,7 +120,7 @@ export class MetadataService {
     }
 
     // Load dependencies
-    const dependenciesFile = this.findFile(folder, 'dependencies.csv');
+    const dependenciesFile = this.findFile(folder, "dependencies.csv");
     if (dependenciesFile) {
       const deps = loadDependencies(dependenciesFile);
       this.repos.procDependency.saveAll(deps);
@@ -108,93 +128,120 @@ export class MetadataService {
     }
 
     // Load report execution history (aggregated stats)
-    const executionHistoryFile = this.findFile(folder, 'report_execution_history.csv');
+    const executionHistoryFile = this.findFile(
+      folder,
+      "report_execution_history.csv",
+    );
     if (executionHistoryFile) {
       const history = loadReportExecutionHistory(executionHistoryFile);
       this.repos.executionHistory.saveAll(history);
       executionHistoryCount = history.length;
       // Debug: log some stats
-      const neverRanCount = history.filter(h => h.executionCount === 0).length;
-      console.log(`Execution history: ${history.length} total, ${neverRanCount} never ran`);
+      const neverRanCount = history.filter(
+        (h) => h.executionCount === 0,
+      ).length;
+      console.log(
+        `Execution history: ${history.length} total, ${neverRanCount} never ran`,
+      );
       if (history.length > 0) {
         console.log(`Sample path: "${history[0].reportPath}"`);
       }
     } else {
-      console.log('No report_execution_history.csv found');
+      console.log("No report_execution_history.csv found");
     }
 
     // Load report executions with parameters (individual executions)
     let reportExecutionCount = 0;
-    const reportExecutionsFile = this.findFile(folder, 'report_executions.csv', 'report_executions.txt');
+    const reportExecutionsFile = this.findFile(
+      folder,
+      "report_executions.csv",
+      "report_executions.txt",
+    );
     if (reportExecutionsFile) {
       const executions = loadReportExecutions(reportExecutionsFile);
       this.repos.reportExecution.saveAll(executions);
       reportExecutionCount = executions.length;
-      console.log(`Report executions with parameters: ${reportExecutionCount} records`);
+      console.log(
+        `Report executions with parameters: ${reportExecutionCount} records`,
+      );
     } else {
-      console.log('No report_executions.csv found');
+      console.log("No report_executions.csv found");
     }
 
     // Load linked reports (Type 4 SSRS reports mapped to templates)
-    const linkedReportsFile = this.findFile(folder, 'linked_reports.csv');
+    const linkedReportsFile = this.findFile(folder, "linked_reports.csv");
     if (linkedReportsFile) {
       const linkedReports = loadLinkedReports(linkedReportsFile);
-      this.repos.linkedReport.saveAll(linkedReports.map(lr => ({
-        id: null,
-        linkedReportName: lr.linkedReportName,
-        linkedReportPath: lr.linkedReportPath,
-        templatePath: lr.templatePath,
-        starred: false,
-      })));
+      this.repos.linkedReport.saveAll(
+        linkedReports.map((lr) => ({
+          id: null,
+          linkedReportName: lr.linkedReportName,
+          linkedReportPath: lr.linkedReportPath,
+          templatePath: lr.templatePath,
+          starred: false,
+        })),
+      );
       linkedReportCount = linkedReports.length;
       console.log(`Linked reports: ${linkedReportCount} records`);
     } else {
-      console.log('No linked_reports.csv found');
+      console.log("No linked_reports.csv found");
     }
 
     // Load new Syspro schema (TRN1 server objects)
     let trn1SchemaCount = 0;
-    const trn1SchemaFile = this.findFile(folder, 'new_syspro_schema.csv', 'trn1_schema.csv', 'trn1_objects.csv');
+    const trn1SchemaFile = this.findFile(
+      folder,
+      "new_syspro_schema.csv",
+      "trn1_schema.csv",
+      "trn1_objects.csv",
+    );
     if (trn1SchemaFile) {
       const trn1Objects = loadTrn1Schema(trn1SchemaFile);
       this.repos.trn1Schema.saveAll(trn1Objects);
       trn1SchemaCount = trn1Objects.length;
       console.log(`New Syspro schema: ${trn1SchemaCount} objects`);
     } else {
-      console.log('No new_syspro_schema.csv found (optional)');
+      console.log("No new_syspro_schema.csv found (optional)");
     }
 
     // Load SQL2 table columns (for column comparison export)
     let sql2ColumnCount = 0;
-    const sql2ColumnsFile = this.findFile(folder, 'table_columns_sql2.csv');
+    const sql2ColumnsFile = this.findFile(folder, "table_columns_sql2.csv");
     if (sql2ColumnsFile) {
       const sql2Columns = loadSql2Columns(sql2ColumnsFile);
       this.repos.column.saveAllSql2(sql2Columns);
       sql2ColumnCount = sql2Columns.length;
       console.log(`SQL2 columns: ${sql2ColumnCount} columns`);
     } else {
-      console.log('No table_columns_sql2.csv found (optional)');
+      console.log("No table_columns_sql2.csv found (optional)");
     }
 
     // Load TRN1 table columns (for column comparison export)
     let trn1ColumnCount = 0;
-    const trn1ColumnsFile = this.findFile(folder, 'table_columns_trn1.csv');
+    const trn1ColumnsFile = this.findFile(folder, "table_columns_trn1.csv");
     if (trn1ColumnsFile) {
       const trn1Columns = loadTrn1Columns(trn1ColumnsFile);
       this.repos.column.saveAllTrn1(trn1Columns);
       trn1ColumnCount = trn1Columns.length;
       console.log(`TRN1 columns: ${trn1ColumnCount} columns`);
     } else {
-      console.log('No table_columns_trn1.csv found (optional)');
+      console.log("No table_columns_trn1.csv found (optional)");
     }
 
     // Update metadata status
     this.repos.metadataStatus.updateCounts(
-      procCount, viewCount, tableCount,
-      sharedDatasetCount, sharedDataSourceCount, linkedServerCount, dependencyCount
+      procCount,
+      viewCount,
+      tableCount,
+      sharedDatasetCount,
+      sharedDataSourceCount,
+      linkedServerCount,
+      dependencyCount,
     );
 
-    console.log(`Metadata loading complete: ${procCount} procs, ${viewCount} views, ${tableCount} tables, ${sharedDatasetCount} shared datasets, ${sharedDataSourceCount} shared data sources, ${linkedServerCount} linked servers, ${dependencyCount} dependencies, ${executionHistoryCount} execution history, ${linkedReportCount} linked reports, ${trn1SchemaCount} TRN1 objects`);
+    console.log(
+      `Metadata loading complete: ${procCount} procs, ${viewCount} views, ${tableCount} tables, ${sharedDatasetCount} shared datasets, ${sharedDataSourceCount} shared data sources, ${linkedServerCount} linked servers, ${dependencyCount} dependencies, ${executionHistoryCount} execution history, ${linkedReportCount} linked reports, ${trn1SchemaCount} TRN1 objects`,
+    );
   }
 
   getStatus(): MetadataStatusDto {
@@ -239,7 +286,7 @@ export class MetadataService {
     for (const file of files) {
       const fileName = file.toLowerCase();
       for (const name of possibleNames) {
-        if (fileName.includes(name.toLowerCase().replace('.csv', ''))) {
+        if (fileName.includes(name.toLowerCase().replace(".csv", ""))) {
           return path.join(folder, file);
         }
       }
@@ -251,7 +298,7 @@ export class MetadataService {
   private formatForDisplay(timeStr: string | null): string | null {
     if (!timeStr) return null;
     try {
-      return dayjs(timeStr).format('MMM D, YYYY h:mm A');
+      return dayjs(timeStr).format("MMM D, YYYY h:mm A");
     } catch {
       return timeStr;
     }
@@ -264,12 +311,16 @@ export class MetadataService {
   exportSysproViewDependencies(): string {
     // Get all views from SysproReporting database
     const allViews = this.repos.view.findAll();
-    const sysproViews = allViews.filter(v => v.databaseName === 'SysproReporting');
+    const sysproViews = allViews.filter(
+      (v) => v.databaseName === "SysproReporting",
+    );
 
-    console.log(`Found ${sysproViews.length} views in SysproReporting database`);
+    console.log(
+      `Found ${sysproViews.length} views in SysproReporting database`,
+    );
 
     // CSV header
-    let csv = 'Source View,Target Entity,SysproReporting-Entity-Type\n';
+    let csv = "Source View,Target Entity,SysproReporting-Entity-Type\n";
 
     for (const view of sysproViews) {
       const sourceView = `${view.schemaName}.${view.viewName}`;
@@ -292,9 +343,9 @@ export class MetadataService {
       // For each table reference, output a row
       for (const ref of tableRefs) {
         // Build the full reference name
-        let targetEntity = '';
+        let targetEntity = "";
 
-        if (ref.sourceType === 'LINKED_SERVER' && ref.server && ref.database) {
+        if (ref.sourceType === "LINKED_SERVER" && ref.server && ref.database) {
           // 4-part name: server.database.schema.table - keep as-is
           targetEntity = `${ref.server}.${ref.database}.${ref.schema}.${ref.tableName}`;
         } else if (ref.database && ref.schema) {
@@ -309,19 +360,27 @@ export class MetadataService {
         }
 
         // Determine if it's a view or table IN SysproReporting database
-        let entityType = 'NOT_FOUND';
+        let entityType = "NOT_FOUND";
 
         // Check if this reference is another view
-        const lookupName = ref.schema ? `${ref.schema}.${ref.tableName}` : ref.tableName;
+        const lookupName = ref.schema
+          ? `${ref.schema}.${ref.tableName}`
+          : ref.tableName;
         const referencedView = this.repos.view.findByName(lookupName);
 
-        if (referencedView && referencedView.databaseName === 'SysproReporting') {
-          entityType = 'VIEW';
+        if (
+          referencedView &&
+          referencedView.databaseName === "SysproReporting"
+        ) {
+          entityType = "VIEW";
         } else {
           // Check if it's a table
           const referencedTable = this.repos.table.findByName(lookupName);
-          if (referencedTable && referencedTable.databaseName === 'SysproReporting') {
-            entityType = 'TABLE';
+          if (
+            referencedTable &&
+            referencedTable.databaseName === "SysproReporting"
+          ) {
+            entityType = "TABLE";
           }
           // Otherwise remains NOT_FOUND (external database or not in metadata)
         }
@@ -334,8 +393,8 @@ export class MetadataService {
   }
 
   private escapeCsv(value: string | null): string {
-    if (!value) return '';
-    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+    if (!value) return "";
+    if (value.includes(",") || value.includes('"') || value.includes("\n")) {
       return `"${value.replace(/"/g, '""')}"`;
     }
     return value;

@@ -1,5 +1,5 @@
-import Database from 'better-sqlite3';
-import { ProcDependency } from '../types/index.js';
+import Database from "better-sqlite3";
+import { ProcDependency } from "../types/index.js";
 
 export class ProcDependencyRepository {
   private db: Database.Database;
@@ -22,48 +22,69 @@ export class ProcDependencyRepository {
   }
 
   findByObject(schema: string, name: string): ProcDependency[] {
-    const rows = this.db.prepare(
-      'SELECT * FROM proc_dependencies WHERE object_schema = ? AND object_name = ? AND depends_on_name IS NOT NULL'
-    ).all(schema, name);
+    const rows = this.db
+      .prepare(
+        "SELECT * FROM proc_dependencies WHERE object_schema = ? AND object_name = ? AND depends_on_name IS NOT NULL",
+      )
+      .all(schema, name);
     return rows.map((row) => this.mapRow(row)!);
   }
 
   findByObjectName(name: string): ProcDependency[] {
-    const rows = this.db.prepare(
-      'SELECT * FROM proc_dependencies WHERE LOWER(object_name) = LOWER(?) AND depends_on_name IS NOT NULL'
-    ).all(name);
+    const rows = this.db
+      .prepare(
+        "SELECT * FROM proc_dependencies WHERE LOWER(object_name) = LOWER(?) AND depends_on_name IS NOT NULL",
+      )
+      .all(name);
     return rows.map((row) => this.mapRow(row)!);
   }
 
-  dependencyExists(objectSchema: string, objectName: string, dependsOnSchema: string, dependsOnName: string): boolean {
-    const row = this.db.prepare(`
+  dependencyExists(
+    objectSchema: string,
+    objectName: string,
+    dependsOnSchema: string,
+    dependsOnName: string,
+  ): boolean {
+    const row = this.db
+      .prepare(
+        `
       SELECT COUNT(*) as count FROM proc_dependencies WHERE
       LOWER(object_schema) = LOWER(?) AND LOWER(object_name) = LOWER(?) AND
       LOWER(depends_on_schema) = LOWER(?) AND LOWER(depends_on_name) = LOWER(?)
-    `).get(objectSchema, objectName, dependsOnSchema, dependsOnName) as any;
+    `,
+      )
+      .get(objectSchema, objectName, dependsOnSchema, dependsOnName) as any;
     return (row?.count || 0) > 0;
   }
 
   dependencyExistsByName(objectName: string, dependsOnName: string): boolean {
-    const row = this.db.prepare(`
+    const row = this.db
+      .prepare(
+        `
       SELECT COUNT(*) as count FROM proc_dependencies WHERE
       LOWER(object_name) = LOWER(?) AND LOWER(depends_on_name) = LOWER(?)
-    `).get(objectName, dependsOnName) as any;
+    `,
+      )
+      .get(objectName, dependsOnName) as any;
     return (row?.count || 0) > 0;
   }
 
   save(dep: ProcDependency): void {
-    this.db.prepare(`
+    this.db
+      .prepare(
+        `
       INSERT INTO proc_dependencies (object_schema, object_name, object_type, depends_on_schema, depends_on_name, depends_on_type)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(
-      dep.objectSchema,
-      dep.objectName,
-      dep.objectType,
-      dep.dependsOnSchema,
-      dep.dependsOnName,
-      dep.dependsOnType
-    );
+    `,
+      )
+      .run(
+        dep.objectSchema,
+        dep.objectName,
+        dep.objectType,
+        dep.dependsOnSchema,
+        dep.dependsOnName,
+        dep.dependsOnType,
+      );
   }
 
   saveAll(deps: ProcDependency[]): void {
@@ -79,7 +100,7 @@ export class ProcDependencyRepository {
           dep.objectType,
           dep.dependsOnSchema,
           dep.dependsOnName,
-          dep.dependsOnType
+          dep.dependsOnType,
         );
       }
     });
@@ -87,11 +108,15 @@ export class ProcDependencyRepository {
   }
 
   count(): number {
-    const row = this.db.prepare('SELECT COUNT(*) as count FROM proc_dependencies WHERE depends_on_name IS NOT NULL').get() as any;
+    const row = this.db
+      .prepare(
+        "SELECT COUNT(*) as count FROM proc_dependencies WHERE depends_on_name IS NOT NULL",
+      )
+      .get() as any;
     return row?.count || 0;
   }
 
   deleteAll(): void {
-    this.db.prepare('DELETE FROM proc_dependencies').run();
+    this.db.prepare("DELETE FROM proc_dependencies").run();
   }
 }

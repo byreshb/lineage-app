@@ -1,5 +1,5 @@
-import Database from 'better-sqlite3';
-import { ReportExecution } from '../types/index.js';
+import Database from "better-sqlite3";
+import { ReportExecution } from "../types/index.js";
 
 export class ReportExecutionRepository {
   private db: Database.Database;
@@ -22,26 +22,34 @@ export class ReportExecutionRepository {
   }
 
   findById(id: number): ReportExecution | undefined {
-    const row = this.db.prepare('SELECT * FROM report_executions WHERE id = ?').get(id);
+    const row = this.db
+      .prepare("SELECT * FROM report_executions WHERE id = ?")
+      .get(id);
     return this.mapRow(row);
   }
 
   findByPath(path: string): ReportExecution[] {
-    const rows = this.db.prepare(
-      'SELECT * FROM report_executions WHERE report_path = ? ORDER BY executed_at DESC'
-    ).all(path);
+    const rows = this.db
+      .prepare(
+        "SELECT * FROM report_executions WHERE report_path = ? ORDER BY executed_at DESC",
+      )
+      .all(path);
     return rows.map((row) => this.mapRow(row)!);
   }
 
   findByPathLimited(path: string, limit: number = 10): ReportExecution[] {
-    const rows = this.db.prepare(
-      'SELECT * FROM report_executions WHERE report_path = ? ORDER BY executed_at DESC LIMIT ?'
-    ).all(path, limit);
+    const rows = this.db
+      .prepare(
+        "SELECT * FROM report_executions WHERE report_path = ? ORDER BY executed_at DESC LIMIT ?",
+      )
+      .all(path, limit);
     return rows.map((row) => this.mapRow(row)!);
   }
 
   findAll(): ReportExecution[] {
-    const rows = this.db.prepare('SELECT * FROM report_executions ORDER BY executed_at DESC').all();
+    const rows = this.db
+      .prepare("SELECT * FROM report_executions ORDER BY executed_at DESC")
+      .all();
     return rows.map((row) => this.mapRow(row)!);
   }
 
@@ -57,7 +65,7 @@ export class ReportExecutionRepository {
       execution.status,
       execution.requestType,
       execution.userName,
-      execution.parameters
+      execution.parameters,
     );
     if (execution.id === null) {
       execution.id = result.lastInsertRowid as number;
@@ -79,7 +87,7 @@ export class ReportExecutionRepository {
           e.status,
           e.requestType,
           e.userName,
-          e.parameters
+          e.parameters,
         );
       }
     });
@@ -87,11 +95,13 @@ export class ReportExecutionRepository {
   }
 
   count(): number {
-    const row = this.db.prepare('SELECT COUNT(*) as count FROM report_executions').get() as any;
+    const row = this.db
+      .prepare("SELECT COUNT(*) as count FROM report_executions")
+      .get() as any;
     return row?.count || 0;
   }
 
   deleteAll(): void {
-    this.db.prepare('DELETE FROM report_executions').run();
+    this.db.prepare("DELETE FROM report_executions").run();
   }
 }

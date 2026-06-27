@@ -1,5 +1,5 @@
-import Database from 'better-sqlite3';
-import { Sql2Column, Trn1Column } from '../types/index.js';
+import Database from "better-sqlite3";
+import { Sql2Column, Trn1Column } from "../types/index.js";
 
 export class ColumnRepository {
   private db: Database.Database;
@@ -21,8 +21,14 @@ export class ColumnRepository {
       maxLength: row.max_length,
       precision: row.precision,
       scale: row.scale,
-      isNullable: row.is_nullable === 1 ? true : row.is_nullable === 0 ? false : null,
-      isPrimaryKey: row.is_primary_key === 1 ? true : row.is_primary_key === 0 ? false : null,
+      isNullable:
+        row.is_nullable === 1 ? true : row.is_nullable === 0 ? false : null,
+      isPrimaryKey:
+        row.is_primary_key === 1
+          ? true
+          : row.is_primary_key === 0
+            ? false
+            : null,
     };
   }
 
@@ -31,10 +37,11 @@ export class ColumnRepository {
     let params: any[];
 
     if (schemaName) {
-      query = 'SELECT * FROM sql2_columns WHERE schema_name = ? AND table_name = ? ORDER BY id';
+      query =
+        "SELECT * FROM sql2_columns WHERE schema_name = ? AND table_name = ? ORDER BY id";
       params = [schemaName, tableName];
     } else {
-      query = 'SELECT * FROM sql2_columns WHERE table_name = ? ORDER BY id';
+      query = "SELECT * FROM sql2_columns WHERE table_name = ? ORDER BY id";
       params = [tableName];
     }
 
@@ -58,7 +65,7 @@ export class ColumnRepository {
       column.precision,
       column.scale,
       column.isNullable === null ? null : column.isNullable ? 1 : 0,
-      column.isPrimaryKey === null ? null : column.isPrimaryKey ? 1 : 0
+      column.isPrimaryKey === null ? null : column.isPrimaryKey ? 1 : 0,
     );
     if (column.id === null) {
       column.id = result.lastInsertRowid as number;
@@ -84,7 +91,7 @@ export class ColumnRepository {
           col.precision,
           col.scale,
           col.isNullable === null ? null : col.isNullable ? 1 : 0,
-          col.isPrimaryKey === null ? null : col.isPrimaryKey ? 1 : 0
+          col.isPrimaryKey === null ? null : col.isPrimaryKey ? 1 : 0,
         );
       }
     });
@@ -92,11 +99,13 @@ export class ColumnRepository {
   }
 
   deleteAllSql2(): void {
-    this.db.prepare('DELETE FROM sql2_columns').run();
+    this.db.prepare("DELETE FROM sql2_columns").run();
   }
 
   countSql2(): number {
-    const row = this.db.prepare('SELECT COUNT(*) as count FROM sql2_columns').get() as any;
+    const row = this.db
+      .prepare("SELECT COUNT(*) as count FROM sql2_columns")
+      .get() as any;
     return row?.count || 0;
   }
 
@@ -114,19 +123,24 @@ export class ColumnRepository {
       maxLength: row.max_length,
       precision: row.precision,
       scale: row.scale,
-      isNullable: row.is_nullable === 1 ? true : row.is_nullable === 0 ? false : null,
+      isNullable:
+        row.is_nullable === 1 ? true : row.is_nullable === 0 ? false : null,
     };
   }
 
-  findTrn1ColumnsByObject(objectName: string, schemaName?: string): Trn1Column[] {
+  findTrn1ColumnsByObject(
+    objectName: string,
+    schemaName?: string,
+  ): Trn1Column[] {
     let query: string;
     let params: any[];
 
     if (schemaName) {
-      query = 'SELECT * FROM trn1_columns WHERE schema_name = ? AND object_name = ? ORDER BY id';
+      query =
+        "SELECT * FROM trn1_columns WHERE schema_name = ? AND object_name = ? ORDER BY id";
       params = [schemaName, objectName];
     } else {
-      query = 'SELECT * FROM trn1_columns WHERE object_name = ? ORDER BY id';
+      query = "SELECT * FROM trn1_columns WHERE object_name = ? ORDER BY id";
       params = [objectName];
     }
 
@@ -150,7 +164,7 @@ export class ColumnRepository {
       column.maxLength,
       column.precision,
       column.scale,
-      column.isNullable === null ? null : column.isNullable ? 1 : 0
+      column.isNullable === null ? null : column.isNullable ? 1 : 0,
     );
     if (column.id === null) {
       column.id = result.lastInsertRowid as number;
@@ -176,7 +190,7 @@ export class ColumnRepository {
           col.maxLength,
           col.precision,
           col.scale,
-          col.isNullable === null ? null : col.isNullable ? 1 : 0
+          col.isNullable === null ? null : col.isNullable ? 1 : 0,
         );
       }
     });
@@ -184,11 +198,13 @@ export class ColumnRepository {
   }
 
   deleteAllTrn1(): void {
-    this.db.prepare('DELETE FROM trn1_columns').run();
+    this.db.prepare("DELETE FROM trn1_columns").run();
   }
 
   countTrn1(): number {
-    const row = this.db.prepare('SELECT COUNT(*) as count FROM trn1_columns').get() as any;
+    const row = this.db
+      .prepare("SELECT COUNT(*) as count FROM trn1_columns")
+      .get() as any;
     return row?.count || 0;
   }
 }

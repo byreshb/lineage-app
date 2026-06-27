@@ -1,4 +1,4 @@
-import { ReportStatus } from './entities.js';
+import { ReportStatus } from "./entities.js";
 
 // RDL file info for scan results
 export interface RdlFileDto {
@@ -82,7 +82,7 @@ export interface SourceTableDto {
   hasPk: boolean | null;
   sourceType: string | null;
   discoveryMethod: string;
-  status: 'Yes' | 'No' | 'NO_TABLES';
+  status: "Yes" | "No" | "NO_TABLES";
   isAvailableInNewSyspro: boolean | null;
 }
 

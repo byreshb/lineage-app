@@ -1,5 +1,5 @@
-import Database from 'better-sqlite3';
-import { DataSource } from '../types/index.js';
+import Database from "better-sqlite3";
+import { DataSource } from "../types/index.js";
 
 export class DataSourceRepository {
   private db: Database.Database;
@@ -23,7 +23,11 @@ export class DataSourceRepository {
   }
 
   findByReportId(reportId: number): DataSource[] {
-    const rows = this.db.prepare('SELECT * FROM data_sources WHERE report_id = ? ORDER BY source_name').all(reportId);
+    const rows = this.db
+      .prepare(
+        "SELECT * FROM data_sources WHERE report_id = ? ORDER BY source_name",
+      )
+      .all(reportId);
     return rows.map((row) => this.mapRow(row)!);
   }
 
@@ -39,13 +43,15 @@ export class DataSourceRepository {
       dataSource.referencePath,
       dataSource.connectionString,
       dataSource.server,
-      dataSource.databaseName
+      dataSource.databaseName,
     );
     dataSource.id = result.lastInsertRowid as number;
     return dataSource;
   }
 
   deleteByReportId(reportId: number): void {
-    this.db.prepare('DELETE FROM data_sources WHERE report_id = ?').run(reportId);
+    this.db
+      .prepare("DELETE FROM data_sources WHERE report_id = ?")
+      .run(reportId);
   }
 }

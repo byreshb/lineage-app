@@ -1,7 +1,14 @@
-import { Repositories } from '../repositories/index.js';
-import { loadPbiExcel, getDefaultPbiExcelPath, PbiExcelRow } from '../parsers/excel.loader.js';
-import { extractTables, extractProcedureCalls } from '../parsers/sql.analyzer.js';
-import { resolvedPaths } from '../config/index.js';
+import { Repositories } from "../repositories/index.js";
+import {
+  loadPbiExcel,
+  getDefaultPbiExcelPath,
+  PbiExcelRow,
+} from "../parsers/excel.loader.js";
+import {
+  extractTables,
+  extractProcedureCalls,
+} from "../parsers/sql.analyzer.js";
+import { resolvedPaths } from "../config/index.js";
 
 export interface PbiLineageNode {
   id: string;
@@ -27,19 +34,19 @@ export interface PbiLineageGraph {
 export interface PbiSourceTable {
   id: number;
   // From Excel file
-  pbiTableName: string;           // PBI table name in Excel (Column B)
-  excelReference: string;         // Source reference from Excel (e.g., "bi.vInvBalances")
-  excelDatabase: string | null;   // Database from Excel (Column F)
+  pbiTableName: string; // PBI table name in Excel (Column B)
+  excelReference: string; // Source reference from Excel (e.g., "bi.vInvBalances")
+  excelDatabase: string | null; // Database from Excel (Column F)
   // Resolved from database
-  resolvedName: string;           // Actual name in database (e.g., "vInvBalances")
-  resolvedSchema: string;         // Actual schema in database (e.g., "bi")
+  resolvedName: string; // Actual name in database (e.g., "vInvBalances")
+  resolvedSchema: string; // Actual schema in database (e.g., "bi")
   resolvedDatabase: string | null; // Actual database
-  resolvedFullName: string;       // schema.name format (e.g., "bi.vInvBalances")
-  entityType: string;             // VIEW, TABLE, UNKNOWN
-  status: string;                 // OK, NOT_FOUND, EXTERNAL
+  resolvedFullName: string; // schema.name format (e.g., "bi.vInvBalances")
+  entityType: string; // VIEW, TABLE, UNKNOWN
+  status: string; // OK, NOT_FOUND, EXTERNAL
   nestedViews?: string[];
-  externalSources?: string[];     // List of external database/schema references
-  isAvailableInNewSyspro?: boolean | null;  // Whether table exists in TRN1
+  externalSources?: string[]; // List of external database/schema references
+  isAvailableInNewSyspro?: boolean | null; // Whether table exists in TRN1
 }
 
 export class PbiLineageService {
@@ -47,14 +54,17 @@ export class PbiLineageService {
 
   // Format entity name with schema prefix when available
   private formatNameWithSchema(name: string, schema: string | null): string {
-    if (schema && schema.trim() !== '') {
+    if (schema && schema.trim() !== "") {
       return `${schema}.${name}`;
     }
-    return name;  // Return as-is when no schema
+    return name; // Return as-is when no schema
   }
 
   // Look up an object in TRN1 schema
-  private findInTrn1(objectName: string): { found: boolean; schema: string | null } {
+  private findInTrn1(objectName: string): {
+    found: boolean;
+    schema: string | null;
+  } {
     const match = this.repos.trn1Schema.findByObjectName(objectName);
     if (match) {
       return { found: true, schema: match.schemaName };
@@ -68,7 +78,7 @@ export class PbiLineageService {
     if (trn1Match.found && trn1Match.schema) {
       return `Yes (${trn1Match.schema})`;
     }
-    return trn1Match.found ? 'Yes' : 'No';
+    return trn1Match.found ? "Yes" : "No";
   }
 
   /**
@@ -88,7 +98,7 @@ export class PbiLineageService {
     const trimmed = entityName.trim();
 
     // If already has a dot, assume it's already normalized (backward compatibility)
-    if (trimmed.includes('.')) return trimmed;
+    if (trimmed.includes(".")) return trimmed;
 
     // Check for single space separating two parts (schema table)
     const parts = trimmed.split(/\s+/);
@@ -105,8 +115,12 @@ export class PbiLineageService {
   /**
    * Load Power BI data from Excel file and populate database
    */
-  loadFromExcel(filePath?: string): { reportCount: number; tableCount: number } {
-    const excelPath = filePath || getDefaultPbiExcelPath(resolvedPaths.csvFolder);
+  loadFromExcel(filePath?: string): {
+    reportCount: number;
+    tableCount: number;
+  } {
+    const excelPath =
+      filePath || getDefaultPbiExcelPath(resolvedPaths.csvFolder);
     console.log(`Loading PBI data from: ${excelPath}`);
 
     const rows = loadPbiExcel(excelPath);
@@ -134,7 +148,7 @@ export class PbiLineageService {
       for (const row of reportRows) {
         this.repos.pbiTable.create({
           pbiReportId: report.id!,
-          tableName: row.pbiTable || 'Unknown',
+          tableName: row.pbiTable || "Unknown",
           sourceDatabase: row.sourceDatabase || null,
           sourceViewOrTable: row.sourceViewOrTable || null,
         });
@@ -142,7 +156,9 @@ export class PbiLineageService {
       }
     }
 
-    console.log(`Loaded ${reportMap.size} PBI reports with ${tableCount} tables`);
+    console.log(
+      `Loaded ${reportMap.size} PBI reports with ${tableCount} tables`,
+    );
 
     return {
       reportCount: reportMap.size,
@@ -170,7 +186,7 @@ export class PbiLineageService {
     nodesMap.set(reportNodeId, {
       id: reportNodeId,
       name: report.reportName,
-      type: 'PBI_REPORT',
+      type: "PBI_REPORT",
     });
 
     // Process each table in the report
@@ -180,7 +196,7 @@ export class PbiLineageService {
       nodesMap.set(tableNodeId, {
         id: tableNodeId,
         name: pbiTable.tableName,
-        type: 'PBI_TABLE',
+        type: "PBI_TABLE",
         database: pbiTable.sourceDatabase,
       });
 
@@ -188,19 +204,19 @@ export class PbiLineageService {
       edges.push({
         source: reportNodeId,
         target: tableNodeId,
-        relationship: 'CONTAINS',
+        relationship: "CONTAINS",
       });
 
       // Save edge to database
       this.repos.pbiLineage.create({
         pbiReportId: reportId,
-        sourceType: 'PBI_REPORT',
+        sourceType: "PBI_REPORT",
         sourceId: reportId,
         sourceName: report.reportName,
-        targetType: 'PBI_TABLE',
+        targetType: "PBI_TABLE",
         targetId: pbiTable.id!,
         targetName: pbiTable.tableName,
-        relationship: 'CONTAINS',
+        relationship: "CONTAINS",
       });
 
       // Process source view/table
@@ -213,7 +229,7 @@ export class PbiLineageService {
           pbiTable.sourceDatabase,
           nodesMap,
           edges,
-          new Set()
+          new Set(),
         );
       }
     }
@@ -237,7 +253,7 @@ export class PbiLineageService {
     database: string | null,
     nodesMap: Map<string, PbiLineageNode>,
     edges: PbiLineageEdge[],
-    visitedViews: Set<string>
+    visitedViews: Set<string>,
   ): void {
     // Prevent infinite loops
     const viewKey = entityName.toLowerCase();
@@ -260,7 +276,7 @@ export class PbiLineageService {
         nodesMap.set(viewNodeId, {
           id: viewNodeId,
           name: view.viewName,
-          type: 'VIEW',
+          type: "VIEW",
           schema: view.schemaName,
         });
       }
@@ -269,19 +285,19 @@ export class PbiLineageService {
       edges.push({
         source: sourceNodeId,
         target: viewNodeId,
-        relationship: 'READS_FROM',
+        relationship: "READS_FROM",
       });
 
       // Save edge to database
       this.repos.pbiLineage.create({
         pbiReportId: reportId,
-        sourceType: sourceNodeId.startsWith('PBI_TABLE') ? 'PBI_TABLE' : 'VIEW',
-        sourceId: parseInt(sourceNodeId.split('_').pop() || '0'),
+        sourceType: sourceNodeId.startsWith("PBI_TABLE") ? "PBI_TABLE" : "VIEW",
+        sourceId: parseInt(sourceNodeId.split("_").pop() || "0"),
         sourceName: sourceName,
-        targetType: 'VIEW',
+        targetType: "VIEW",
         targetId: view.id!,
         targetName: view.viewName,
-        relationship: 'READS_FROM',
+        relationship: "READS_FROM",
       });
 
       // Also add view's full name and short name to visited to prevent duplicates
@@ -293,15 +309,22 @@ export class PbiLineageService {
       if (view.definition) {
         const tableRefs = extractTables(view.definition);
         for (const ref of tableRefs) {
-          // Skip self-references
-          if (ref.tableName.toLowerCase() === view.viewName.toLowerCase()) continue;
-          if (ref.tableName.toLowerCase() === fullName) continue;
-
-          // Build full entity name (schema.table if schema exists)
+          // Build full entity name for comparison (schema.table if schema exists)
           let nestedEntityName = ref.tableName;
           if (ref.schema) {
             nestedEntityName = `${ref.schema}.${ref.tableName}`;
           }
+
+          // Skip self-references - compare full names including schema
+          // bi.vWipMaster -> syspro.vWipMaster should NOT be skipped (different schema)
+          const currentFullName =
+            `${view.schemaName}.${view.viewName}`.toLowerCase();
+          if (nestedEntityName.toLowerCase() === currentFullName) continue;
+          if (
+            nestedEntityName.toLowerCase() === view.viewName.toLowerCase() &&
+            !ref.schema
+          )
+            continue;
 
           // Recursively process nested views/tables
           this.processSourceEntity(
@@ -312,14 +335,16 @@ export class PbiLineageService {
             database,
             nodesMap,
             edges,
-            visitedViews
+            visitedViews,
           );
         }
 
         // Also check for EXEC statements in view definitions (VIEW -> PROC chains)
         const procCalls = extractProcedureCalls(view.definition);
         for (const procCall of procCalls) {
-          const procName = procCall.schema ? `${procCall.schema}.${procCall.procName}` : procCall.procName;
+          const procName = procCall.schema
+            ? `${procCall.schema}.${procCall.procName}`
+            : procCall.procName;
           const proc = this.repos.storedProc.findByName(procCall.procName);
 
           if (proc) {
@@ -328,7 +353,7 @@ export class PbiLineageService {
               nodesMap.set(procNodeId, {
                 id: procNodeId,
                 name: proc.procName,
-                type: 'PROC',
+                type: "PROC",
                 schema: proc.schemaName,
               });
             }
@@ -336,18 +361,18 @@ export class PbiLineageService {
             edges.push({
               source: viewNodeId,
               target: procNodeId,
-              relationship: 'CALLS',
+              relationship: "CALLS",
             });
 
             this.repos.pbiLineage.create({
               pbiReportId: reportId,
-              sourceType: 'VIEW',
+              sourceType: "VIEW",
               sourceId: view.id!,
               sourceName: view.viewName,
-              targetType: 'PROC',
+              targetType: "PROC",
               targetId: proc.id!,
               targetName: proc.procName,
-              relationship: 'CALLS',
+              relationship: "CALLS",
             });
 
             // Recursively analyze proc definition for tables/views
@@ -368,7 +393,7 @@ export class PbiLineageService {
                   database,
                   nodesMap,
                   edges,
-                  visitedViews
+                  visitedViews,
                 );
               }
             }
@@ -385,7 +410,7 @@ export class PbiLineageService {
           nodesMap.set(tableNodeId, {
             id: tableNodeId,
             name: table.tableName,
-            type: 'TABLE',
+            type: "TABLE",
             database: table.databaseName,
             schema: table.schemaName,
           });
@@ -395,46 +420,50 @@ export class PbiLineageService {
         edges.push({
           source: sourceNodeId,
           target: tableNodeId,
-          relationship: 'READS_FROM',
+          relationship: "READS_FROM",
         });
 
         // Save edge to database
         this.repos.pbiLineage.create({
           pbiReportId: reportId,
-          sourceType: sourceNodeId.startsWith('PBI_TABLE') ? 'PBI_TABLE' : 'VIEW',
-          sourceId: parseInt(sourceNodeId.split('_').pop() || '0'),
+          sourceType: sourceNodeId.startsWith("PBI_TABLE")
+            ? "PBI_TABLE"
+            : "VIEW",
+          sourceId: parseInt(sourceNodeId.split("_").pop() || "0"),
           sourceName: sourceName,
-          targetType: 'TABLE',
+          targetType: "TABLE",
           targetId: table.id!,
           targetName: table.tableName,
-          relationship: 'READS_FROM',
+          relationship: "READS_FROM",
         });
       } else {
         // Entity not found - add as TABLE_NOT_FOUND
-        const notFoundId = `TABLE_NOT_FOUND_${entityName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const notFoundId = `TABLE_NOT_FOUND_${entityName.replace(/[^a-zA-Z0-9]/g, "_")}`;
         if (!nodesMap.has(notFoundId)) {
           nodesMap.set(notFoundId, {
             id: notFoundId,
             name: entityName,
-            type: 'TABLE_NOT_FOUND',
+            type: "TABLE_NOT_FOUND",
           });
         }
 
         edges.push({
           source: sourceNodeId,
           target: notFoundId,
-          relationship: 'READS_FROM',
+          relationship: "READS_FROM",
         });
 
         this.repos.pbiLineage.create({
           pbiReportId: reportId,
-          sourceType: sourceNodeId.startsWith('PBI_TABLE') ? 'PBI_TABLE' : 'VIEW',
-          sourceId: parseInt(sourceNodeId.split('_').pop() || '0'),
+          sourceType: sourceNodeId.startsWith("PBI_TABLE")
+            ? "PBI_TABLE"
+            : "VIEW",
+          sourceId: parseInt(sourceNodeId.split("_").pop() || "0"),
           sourceName: sourceName,
-          targetType: 'TABLE_NOT_FOUND',
+          targetType: "TABLE_NOT_FOUND",
           targetId: null,
           targetName: entityName,
-          relationship: 'READS_FROM',
+          relationship: "READS_FROM",
         });
       }
     }
@@ -463,15 +492,18 @@ export class PbiLineageService {
 
       if (view) {
         // Check for external sources in the view chain
-        const externalSources = this.detectExternalSources(entityName, new Set());
+        const externalSources = this.detectExternalSources(
+          entityName,
+          new Set(),
+        );
         const hasComplete = this.hasCompleteLineage(entityName, new Set());
 
         // Determine status: Yes if ends in table, EXTERNAL if has external refs, PARTIAL if both
-        let status = 'Yes';
+        let status = "Yes";
         if (externalSources.length > 0 && !hasComplete) {
-          status = 'EXTERNAL';
+          status = "EXTERNAL";
         } else if (externalSources.length > 0 && hasComplete) {
-          status = 'PARTIAL'; // Has both complete paths and external refs
+          status = "PARTIAL"; // Has both complete paths and external refs
         }
 
         // Check TRN1 availability
@@ -485,11 +517,15 @@ export class PbiLineageService {
           resolvedName: view.viewName,
           resolvedSchema: view.schemaName,
           resolvedDatabase: pbiTable.sourceDatabase,
-          resolvedFullName: this.formatNameWithSchema(view.viewName, view.schemaName),
-          entityType: 'VIEW',
+          resolvedFullName: this.formatNameWithSchema(
+            view.viewName,
+            view.schemaName,
+          ),
+          entityType: "VIEW",
           status,
           nestedViews: nestedViews.length > 0 ? nestedViews : undefined,
-          externalSources: externalSources.length > 0 ? externalSources : undefined,
+          externalSources:
+            externalSources.length > 0 ? externalSources : undefined,
           isAvailableInNewSyspro: trn1Match.found,
         });
       } else if (table) {
@@ -504,16 +540,19 @@ export class PbiLineageService {
           resolvedName: table.tableName,
           resolvedSchema: table.schemaName,
           resolvedDatabase: table.databaseName,
-          resolvedFullName: this.formatNameWithSchema(table.tableName, table.schemaName),
-          entityType: 'TABLE',
-          status: 'Yes',
+          resolvedFullName: this.formatNameWithSchema(
+            table.tableName,
+            table.schemaName,
+          ),
+          entityType: "TABLE",
+          status: "Yes",
           isAvailableInNewSyspro: trn1Match.found,
         });
       } else {
         // Parse schema.table from entity name for NOT_FOUND entries
         const normalizedName = this.normalizePbiEntityName(entityName);
-        const parts = normalizedName.split('.');
-        let notFoundSchema = '';
+        const parts = normalizedName.split(".");
+        let notFoundSchema = "";
         let notFoundTable = normalizedName;
         if (parts.length >= 2) {
           notFoundSchema = parts[parts.length - 2];
@@ -529,11 +568,14 @@ export class PbiLineageService {
           excelReference: entityName,
           excelDatabase: pbiTable.sourceDatabase,
           resolvedName: notFoundTable,
-          resolvedSchema: trn1Match.found && trn1Match.schema && !notFoundSchema ? trn1Match.schema : notFoundSchema,
+          resolvedSchema:
+            trn1Match.found && trn1Match.schema && !notFoundSchema
+              ? trn1Match.schema
+              : notFoundSchema,
           resolvedDatabase: pbiTable.sourceDatabase,
           resolvedFullName: normalizedName,
-          entityType: 'NOT_FOUND',
-          status: 'NOT_FOUND',
+          entityType: "NOT_FOUND",
+          status: "NOT_FOUND",
           isAvailableInNewSyspro: trn1Match.found,
         });
       }
@@ -586,7 +628,10 @@ export class PbiLineageService {
   /**
    * Detect external sources - tables/views referenced but not in our metadata
    */
-  private detectExternalSources(viewName: string, visited: Set<string>): string[] {
+  private detectExternalSources(
+    viewName: string,
+    visited: Set<string>,
+  ): string[] {
     if (visited.has(viewName.toLowerCase())) return [];
     visited.add(viewName.toLowerCase());
 
@@ -619,7 +664,10 @@ export class PbiLineageService {
 
       if (nestedView) {
         // Recursively check nested views for external sources
-        const deeper = this.detectExternalSources(`${nestedView.schemaName}.${nestedView.viewName}`, visited);
+        const deeper = this.detectExternalSources(
+          `${nestedView.schemaName}.${nestedView.viewName}`,
+          visited,
+        );
         externalSources.push(...deeper);
       } else if (nestedTable) {
         // Found in our tables - not external
@@ -664,7 +712,12 @@ export class PbiLineageService {
         return true; // Found a table - complete lineage exists
       }
       if (nestedView) {
-        if (this.hasCompleteLineage(`${nestedView.schemaName}.${nestedView.viewName}`, new Set(visited))) {
+        if (
+          this.hasCompleteLineage(
+            `${nestedView.schemaName}.${nestedView.viewName}`,
+            new Set(visited),
+          )
+        ) {
           return true;
         }
       }
@@ -703,7 +756,7 @@ export class PbiLineageService {
       // Add target node
       const targetKey = edge.targetId
         ? `${edge.targetType}_${edge.targetId}`
-        : `${edge.targetType}_${edge.targetName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        : `${edge.targetType}_${edge.targetName.replace(/[^a-zA-Z0-9]/g, "_")}`;
       if (!nodesMap.has(targetKey)) {
         nodesMap.set(targetKey, {
           id: targetKey,
@@ -721,7 +774,7 @@ export class PbiLineageService {
         source: `${e.sourceType}_${e.sourceId}`,
         target: e.targetId
           ? `${e.targetType}_${e.targetId}`
-          : `${e.targetType}_${e.targetName.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          : `${e.targetType}_${e.targetName.replace(/[^a-zA-Z0-9]/g, "_")}`,
         relationship: e.relationship,
       })),
     };
@@ -760,23 +813,42 @@ export class PbiLineageService {
    */
   private buildPbiCsv(reports: any[]): string {
     // CSV header - matches SSRS export format
-    const header = [
-      'ReportType',
-      'Report Name',
-      'Report Path',
-      'Dataset',
-      'Dataset Type',
-      'Proc1', 'Proc2', 'Proc3', 'Proc4', 'Proc5', 'Proc6', 'Proc7', 'Proc8', 'Proc9', 'Proc10',
-      'View1', 'View2', 'View3', 'View4', 'View5', 'View6', 'View7', 'View8', 'View9', 'View10',
-      'Comment',
-      'Table',
-      'Schema',
-      'Server',
-      'Database',
-      'In SQL2(D300SQLDW01)',
-      'SQL2(D300SQLDW01) Has PK',
-      'Available In New Syspro'
-    ].join(',') + '\n';
+    const header =
+      [
+        "ReportType",
+        "Report Name",
+        "Report Path",
+        "Dataset",
+        "Dataset Type",
+        "Proc1",
+        "Proc2",
+        "Proc3",
+        "Proc4",
+        "Proc5",
+        "Proc6",
+        "Proc7",
+        "Proc8",
+        "Proc9",
+        "Proc10",
+        "View1",
+        "View2",
+        "View3",
+        "View4",
+        "View5",
+        "View6",
+        "View7",
+        "View8",
+        "View9",
+        "View10",
+        "Comment",
+        "Table",
+        "Schema",
+        "Server",
+        "Database",
+        "In SQL2(D300SQLDW01)",
+        "SQL2(D300SQLDW01) Has PK",
+        "Available In New Syspro",
+      ].join(",") + "\n";
 
     let csv = header;
 
@@ -785,46 +857,46 @@ export class PbiLineageService {
 
       if (tables.length === 0) {
         csv += this.formatPbiCsvRow({
-          reportType: 'PowerBI',
+          reportType: "PowerBI",
           reportName: report.reportName,
-          reportPath: '',
-          datasetName: '',
-          datasetType: 'PowerBI',
+          reportPath: "",
+          datasetName: "",
+          datasetType: "PowerBI",
           procs: [],
           views: [],
-          comment: '',
-          metadataTable: 'No tables in report',
-          metadataSchema: '',
-          sourceServer: '',
-          sourceDatabase: '',
-          status: 'NO TABLES',
-          hasPk: '-',
-          isAvailableInNewSyspro: '-',
+          comment: "",
+          metadataTable: "No tables in report",
+          metadataSchema: "",
+          sourceServer: "",
+          sourceDatabase: "",
+          status: "NO TABLES",
+          hasPk: "-",
+          isAvailableInNewSyspro: "-",
         });
         continue;
       }
 
       for (const pbiTable of tables) {
-        const entityName = pbiTable.sourceViewOrTable || '';
-        const sourceDb = pbiTable.sourceDatabase || '';
+        const entityName = pbiTable.sourceViewOrTable || "";
+        const sourceDb = pbiTable.sourceDatabase || "";
 
         if (!entityName) {
           csv += this.formatPbiCsvRow({
-            reportType: 'PowerBI',
+            reportType: "PowerBI",
             reportName: report.reportName,
-            reportPath: '',
+            reportPath: "",
             datasetName: pbiTable.tableName,
-            datasetType: 'PowerBI',
+            datasetType: "PowerBI",
             procs: [],
             views: [],
-            comment: '',
-            metadataTable: 'No source entity specified',
-            metadataSchema: '',
-            sourceServer: '',
+            comment: "",
+            metadataTable: "No source entity specified",
+            metadataSchema: "",
+            sourceServer: "",
             sourceDatabase: sourceDb,
-            status: 'NO SOURCE',
-            hasPk: '-',
-            isAvailableInNewSyspro: '-',
+            status: "NO SOURCE",
+            hasPk: "-",
+            isAvailableInNewSyspro: "-",
           });
           continue;
         }
@@ -835,20 +907,25 @@ export class PbiLineageService {
         const directTable = this.repos.table.findByName(normalizedName);
         if (directTable) {
           csv += this.formatPbiCsvRow({
-            reportType: 'PowerBI',
+            reportType: "PowerBI",
             reportName: report.reportName,
-            reportPath: '',
+            reportPath: "",
             datasetName: pbiTable.tableName,
-            datasetType: 'PowerBI',
+            datasetType: "PowerBI",
             procs: [],
             views: [],
-            comment: '',
+            comment: "",
             metadataTable: directTable.tableName,
-            metadataSchema: directTable.schemaName || '',
-            sourceServer: '',
+            metadataSchema: directTable.schemaName || "",
+            sourceServer: "",
             sourceDatabase: sourceDb,
-            status: 'Yes',
-            hasPk: directTable.hasPk === true ? 'Yes' : directTable.hasPk === false ? 'No' : '-',
+            status: "Yes",
+            hasPk:
+              directTable.hasPk === true
+                ? "Yes"
+                : directTable.hasPk === false
+                  ? "No"
+                  : "-",
             isAvailableInNewSyspro: this.getTrn1Status(directTable.tableName),
           });
           continue;
@@ -858,26 +935,33 @@ export class PbiLineageService {
         const view = this.repos.view.findByName(normalizedName);
         if (view) {
           // Find all base tables through nested views
-          const baseTables = this.findAllBaseTablesForPbi(normalizedName, [], [], new Set());
+          const baseTables = this.findAllBaseTablesForPbi(
+            normalizedName,
+            [],
+            [],
+            new Set(),
+          );
 
           if (baseTables.length === 0) {
             // View exists but has no traceable tables
             csv += this.formatPbiCsvRow({
-              reportType: 'PowerBI',
+              reportType: "PowerBI",
               reportName: report.reportName,
-              reportPath: '',
+              reportPath: "",
               datasetName: pbiTable.tableName,
-              datasetType: 'PowerBI',
+              datasetType: "PowerBI",
               procs: [],
-              views: [this.formatNameWithSchema(view.viewName, view.schemaName)],
-              comment: '',
-              metadataTable: 'No base tables found in view',
-              metadataSchema: view.schemaName || '',
-              sourceServer: '',
+              views: [
+                this.formatNameWithSchema(view.viewName, view.schemaName),
+              ],
+              comment: "",
+              metadataTable: "No base tables found in view",
+              metadataSchema: view.schemaName || "",
+              sourceServer: "",
               sourceDatabase: sourceDb,
-              status: 'VIEW_NO_TABLES',
-              hasPk: '-',
-              isAvailableInNewSyspro: '-',
+              status: "VIEW_NO_TABLES",
+              hasPk: "-",
+              isAvailableInNewSyspro: "-",
             });
             continue;
           }
@@ -885,36 +969,44 @@ export class PbiLineageService {
           // Output one row per base table found
           for (const bt of baseTables) {
             // Use schema-formatted view name
-            const firstViewName = this.formatNameWithSchema(view.viewName, view.schemaName);
+            const firstViewName = this.formatNameWithSchema(
+              view.viewName,
+              view.schemaName,
+            );
             const allViews = [firstViewName, ...bt.viewPath];
-            const { procs, views, comment } = this.splitPathsWithOverflow(bt.procPath, allViews);
+            const { procs, views, comment } = this.splitPathsWithOverflow(
+              bt.procPath,
+              allViews,
+            );
             // Add comment for external tables not found in metadata
             const finalComment = bt.isExternal
-              ? (comment ? `${comment}; Table in view SQL not found (in tables_with_pks.csv)` : 'Table in view SQL not found (in tables_with_pks.csv)')
+              ? comment
+                ? `${comment}; Table in view SQL not found (in tables_with_pks.csv)`
+                : "Table in view SQL not found (in tables_with_pks.csv)"
               : comment;
 
             csv += this.formatPbiCsvRow({
-              reportType: 'PowerBI',
+              reportType: "PowerBI",
               reportName: report.reportName,
-              reportPath: '',
+              reportPath: "",
               datasetName: pbiTable.tableName,
-              datasetType: 'PowerBI',
+              datasetType: "PowerBI",
               procs,
               views,
               comment: finalComment,
               metadataTable: bt.tableName,
               metadataSchema: bt.schema,
-              sourceServer: '',
+              sourceServer: "",
               sourceDatabase: sourceDb,
-              status: bt.isExternal ? 'No' : 'Yes',
-              hasPk: bt.hasPk || '-',
+              status: bt.isExternal ? "No" : "Yes",
+              hasPk: bt.hasPk || "-",
               isAvailableInNewSyspro: this.getTrn1Status(bt.tableName),
             });
           }
         } else {
           // Not found as table or view
-          const parts = normalizedName.split('.');
-          let notFoundSchema = '';
+          const parts = normalizedName.split(".");
+          let notFoundSchema = "";
           let notFoundTable = normalizedName;
           if (parts.length >= 2) {
             notFoundSchema = parts[parts.length - 2];
@@ -922,20 +1014,20 @@ export class PbiLineageService {
           }
 
           csv += this.formatPbiCsvRow({
-            reportType: 'PowerBI',
+            reportType: "PowerBI",
             reportName: report.reportName,
-            reportPath: '',
+            reportPath: "",
             datasetName: pbiTable.tableName,
-            datasetType: 'PowerBI',
+            datasetType: "PowerBI",
             procs: [],
             views: [],
             comment: `Excel source not found (in all_views.csv): ${entityName}`,
             metadataTable: notFoundTable,
             metadataSchema: notFoundSchema,
-            sourceServer: '',
+            sourceServer: "",
             sourceDatabase: sourceDb,
-            status: 'No',
-            hasPk: '-',
+            status: "No",
+            hasPk: "-",
             isAvailableInNewSyspro: this.getTrn1Status(notFoundTable),
           });
         }
@@ -952,8 +1044,17 @@ export class PbiLineageService {
     viewName: string,
     currentViewPath: string[],
     currentProcPath: string[],
-    visited: Set<string>
-  ): { tableName: string; schema: string; viewPath: string[]; procPath: string[]; isExternal: boolean; metadataServer: string; metadataDatabase: string; hasPk: string }[] {
+    visited: Set<string>,
+  ): {
+    tableName: string;
+    schema: string;
+    viewPath: string[];
+    procPath: string[];
+    isExternal: boolean;
+    metadataServer: string;
+    metadataDatabase: string;
+    hasPk: string;
+  }[] {
     const lowerName = viewName.toLowerCase();
     if (visited.has(lowerName)) return [];
     visited.add(lowerName);
@@ -966,13 +1067,22 @@ export class PbiLineageService {
     const fullName = `${view.schemaName}.${view.viewName}`;
     visited.add(fullName.toLowerCase());
 
-    const results: { tableName: string; schema: string; viewPath: string[]; procPath: string[]; isExternal: boolean; metadataServer: string; metadataDatabase: string; hasPk: string }[] = [];
+    const results: {
+      tableName: string;
+      schema: string;
+      viewPath: string[];
+      procPath: string[];
+      isExternal: boolean;
+      metadataServer: string;
+      metadataDatabase: string;
+      hasPk: string;
+    }[] = [];
     const tableRefs = extractTables(view.definition);
 
     for (const ref of tableRefs) {
       let lookupName = ref.tableName;
-      let refDatabase = ref.database || '';
-      let refSchema = ref.schema || '';
+      let refDatabase = ref.database || "";
+      let refSchema = ref.schema || "";
 
       if (ref.database && ref.schema) {
         lookupName = `${ref.schema}.${ref.tableName}`;
@@ -987,7 +1097,12 @@ export class PbiLineageService {
       if (nestedView) {
         const nestedFullName = `${nestedView.schemaName}.${nestedView.viewName}`;
         const newViewPath = [...currentViewPath, nestedFullName];
-        const deeper = this.findAllBaseTablesForPbi(nestedFullName, newViewPath, currentProcPath, visited);
+        const deeper = this.findAllBaseTablesForPbi(
+          nestedFullName,
+          newViewPath,
+          currentProcPath,
+          visited,
+        );
         results.push(...deeper);
         continue;
       }
@@ -1001,9 +1116,10 @@ export class PbiLineageService {
           viewPath: currentViewPath,
           procPath: currentProcPath,
           isExternal: false,
-          metadataServer: table.server || '',
-          metadataDatabase: table.databaseName || '',
-          hasPk: table.hasPk === true ? 'Yes' : table.hasPk === false ? 'No' : '-',
+          metadataServer: table.server || "",
+          metadataDatabase: table.databaseName || "",
+          hasPk:
+            table.hasPk === true ? "Yes" : table.hasPk === false ? "No" : "-",
         });
       } else {
         // External table - not in our metadata
@@ -1013,9 +1129,9 @@ export class PbiLineageService {
           viewPath: currentViewPath,
           procPath: currentProcPath,
           isExternal: true,
-          metadataServer: '',
+          metadataServer: "",
           metadataDatabase: refDatabase,
-          hasPk: '-',
+          hasPk: "-",
         });
       }
     }
@@ -1043,7 +1159,12 @@ export class PbiLineageService {
           const nestedView = this.repos.view.findByName(lookupName);
           if (nestedView) {
             const nestedFullName = `${nestedView.schemaName}.${nestedView.viewName}`;
-            const deeper = this.findAllBaseTablesForPbi(nestedFullName, [], newProcPath, visited);
+            const deeper = this.findAllBaseTablesForPbi(
+              nestedFullName,
+              [],
+              newProcPath,
+              visited,
+            );
             results.push(...deeper);
             continue;
           }
@@ -1053,24 +1174,29 @@ export class PbiLineageService {
           if (table) {
             results.push({
               tableName: table.tableName,
-              schema: table.schemaName || ref.schema || '',
+              schema: table.schemaName || ref.schema || "",
               viewPath: [],
               procPath: newProcPath,
               isExternal: false,
-              metadataServer: table.server || '',
-              metadataDatabase: table.databaseName || '',
-              hasPk: table.hasPk === true ? 'Yes' : table.hasPk === false ? 'No' : '-',
+              metadataServer: table.server || "",
+              metadataDatabase: table.databaseName || "",
+              hasPk:
+                table.hasPk === true
+                  ? "Yes"
+                  : table.hasPk === false
+                    ? "No"
+                    : "-",
             });
           } else {
             results.push({
               tableName: ref.tableName,
-              schema: ref.schema || '',
+              schema: ref.schema || "",
               viewPath: [],
               procPath: newProcPath,
               isExternal: true,
-              metadataServer: '',
-              metadataDatabase: ref.database || '',
-              hasPk: '-',
+              metadataServer: "",
+              metadataDatabase: ref.database || "",
+              hasPk: "-",
             });
           }
         }
@@ -1085,7 +1211,7 @@ export class PbiLineageService {
    */
   private splitPathsWithOverflow(
     allProcs: string[],
-    allViews: string[]
+    allViews: string[],
   ): { procs: string[]; views: string[]; comment: string } {
     const uniqueProcs = [...new Set(allProcs)];
     const uniqueViews = [...new Set(allViews)];
@@ -1097,15 +1223,15 @@ export class PbiLineageService {
 
     if (uniqueProcs.length > 10) {
       const overflow = uniqueProcs.slice(10);
-      comments.push(`Additional Procs: ${overflow.join(', ')}`);
+      comments.push(`Additional Procs: ${overflow.join(", ")}`);
     }
 
     if (uniqueViews.length > 10) {
       const overflow = uniqueViews.slice(10);
-      comments.push(`Additional Views: ${overflow.join(', ')}`);
+      comments.push(`Additional Views: ${overflow.join(", ")}`);
     }
 
-    return { procs, views, comment: comments.join('; ') };
+    return { procs, views, comment: comments.join("; ") };
   }
 
   /**
@@ -1131,44 +1257,50 @@ export class PbiLineageService {
     // Pad procs and views to 10 columns each
     const procCols: string[] = [];
     for (let i = 0; i < 10; i++) {
-      procCols.push(this.escapeCsv(row.procs[i] || ''));
+      procCols.push(this.escapeCsv(row.procs[i] || ""));
     }
 
     const viewCols: string[] = [];
     for (let i = 0; i < 10; i++) {
-      viewCols.push(this.escapeCsv(row.views[i] || ''));
+      viewCols.push(this.escapeCsv(row.views[i] || ""));
     }
 
-    return [
-      row.reportType,
-      this.escapeCsv(row.reportName),
-      this.escapeCsv(row.reportPath),
-      this.escapeCsv(row.datasetName),
-      this.escapeCsv(row.datasetType),
-      ...procCols,
-      ...viewCols,
-      this.escapeCsv(row.comment),
-      this.escapeCsv(row.metadataTable),
-      this.escapeCsv(row.metadataSchema),
-      this.escapeCsv(row.sourceServer),
-      this.escapeCsv(row.sourceDatabase),
-      this.escapeCsv(row.status),
-      this.escapeCsv(row.hasPk),
-      this.escapeCsv(row.isAvailableInNewSyspro || '-'),
-    ].join(',') + '\n';
+    return (
+      [
+        row.reportType,
+        this.escapeCsv(row.reportName),
+        this.escapeCsv(row.reportPath),
+        this.escapeCsv(row.datasetName),
+        this.escapeCsv(row.datasetType),
+        ...procCols,
+        ...viewCols,
+        this.escapeCsv(row.comment),
+        this.escapeCsv(row.metadataTable),
+        this.escapeCsv(row.metadataSchema),
+        this.escapeCsv(row.sourceServer),
+        this.escapeCsv(row.sourceDatabase),
+        this.escapeCsv(row.status),
+        this.escapeCsv(row.hasPk),
+        this.escapeCsv(row.isAvailableInNewSyspro || "-"),
+      ].join(",") + "\n"
+    );
   }
 
   private escapeCsv(value: string | null): string {
-    if (!value) return '';
+    if (!value) return "";
     // Replace Unicode arrows and other special chars with ASCII equivalents
     let sanitized = value
-      .replace(/→/g, '->')
-      .replace(/←/g, '<-')
-      .replace(/↔/g, '<->')
-      .replace(/–/g, '-')  // en-dash
-      .replace(/—/g, '--'); // em-dash
+      .replace(/→/g, "->")
+      .replace(/←/g, "<-")
+      .replace(/↔/g, "<->")
+      .replace(/–/g, "-") // en-dash
+      .replace(/—/g, "--"); // em-dash
 
-    if (sanitized.includes(',') || sanitized.includes('"') || sanitized.includes('\n')) {
+    if (
+      sanitized.includes(",") ||
+      sanitized.includes('"') ||
+      sanitized.includes("\n")
+    ) {
       return `"${sanitized.replace(/"/g, '""')}"`;
     }
     return sanitized;
@@ -1177,7 +1309,15 @@ export class PbiLineageService {
   /**
    * Get all external sources referenced by a report
    */
-  getExternalSources(reportId: number): { source: string; database: string; schema: string; table: string; usedBy: string[] }[] {
+  getExternalSources(
+    reportId: number,
+  ): {
+    source: string;
+    database: string;
+    schema: string;
+    table: string;
+    usedBy: string[];
+  }[] {
     const tables = this.getSourceTables(reportId);
 
     // Collect all external sources and which PBI tables use them
@@ -1195,12 +1335,18 @@ export class PbiLineageService {
     }
 
     // Convert to array and extract database/schema/table
-    const results: { source: string; database: string; schema: string; table: string; usedBy: string[] }[] = [];
+    const results: {
+      source: string;
+      database: string;
+      schema: string;
+      table: string;
+      usedBy: string[];
+    }[] = [];
 
     for (const [source, usedBySet] of sourceMap) {
-      const parts = source.split('.');
-      let database = '';
-      let schema = '';
+      const parts = source.split(".");
+      let database = "";
+      let schema = "";
       let table = source;
 
       if (parts.length === 3) {
@@ -1210,12 +1356,12 @@ export class PbiLineageService {
         table = parts[2];
       } else if (parts.length === 2) {
         // schema.table - first part is schema, database is unknown
-        database = 'Unknown';
+        database = "Unknown";
         schema = parts[0];
         table = parts[1];
       } else {
-        database = 'Unknown';
-        schema = '';
+        database = "Unknown";
+        schema = "";
         table = parts[0];
       }
 
@@ -1230,7 +1376,8 @@ export class PbiLineageService {
 
     // Sort by database, then source name
     results.sort((a, b) => {
-      if (a.database !== b.database) return a.database.localeCompare(b.database);
+      if (a.database !== b.database)
+        return a.database.localeCompare(b.database);
       return a.source.localeCompare(b.source);
     });
 

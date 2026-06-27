@@ -1,20 +1,27 @@
-import fs from 'fs';
-import path from 'path';
-import { glob } from 'glob';
-import { resolvedPaths } from '../config/index.js';
-import { Repositories } from '../repositories/index.js';
-import { RdlFileDto, ProcessingStatusDto, Report, Dataset, DataSource, RdlSource } from '../types/index.js';
-import { parseRdlFile, parseRdlContent } from '../parsers/rdl.parser.js';
-import { loadRdlReports, RdlReportCsv } from '../parsers/csv.loader.js';
-import { LineageService } from './lineage.service.js';
-import dayjs from 'dayjs';
+import fs from "fs";
+import path from "path";
+import { glob } from "glob";
+import { resolvedPaths } from "../config/index.js";
+import { Repositories } from "../repositories/index.js";
+import {
+  RdlFileDto,
+  ProcessingStatusDto,
+  Report,
+  Dataset,
+  DataSource,
+  RdlSource,
+} from "../types/index.js";
+import { parseRdlFile, parseRdlContent } from "../parsers/rdl.parser.js";
+import { loadRdlReports, RdlReportCsv } from "../parsers/csv.loader.js";
+import { LineageService } from "./lineage.service.js";
+import dayjs from "dayjs";
 
 export class RdlService {
   private isProcessing = false;
   private totalFiles = 0;
   private completedFiles = 0;
   private errorFiles = 0;
-  private currentFile = '';
+  private currentFile = "";
   private startTime: Date | null = null;
   private filePathCache = new Map<string, string>();
 
@@ -24,19 +31,21 @@ export class RdlService {
 
   constructor(
     private repos: Repositories,
-    private lineageService: LineageService
+    private lineageService: LineageService,
   ) {}
 
   // Load RDL reports from CSV/TXT file
   loadRdlReportsFromCsv(): number {
     // Try .txt first (tab-delimited, recommended), then .csv
-    let filePath = path.join(resolvedPaths.csvFolder, 'rdl_reports.txt');
+    let filePath = path.join(resolvedPaths.csvFolder, "rdl_reports.txt");
     if (!fs.existsSync(filePath)) {
-      filePath = path.join(resolvedPaths.csvFolder, 'rdl_reports.csv');
+      filePath = path.join(resolvedPaths.csvFolder, "rdl_reports.csv");
     }
 
     if (!fs.existsSync(filePath)) {
-      console.warn(`RDL reports file not found: rdl_reports.txt or rdl_reports.csv`);
+      console.warn(
+        `RDL reports file not found: rdl_reports.txt or rdl_reports.csv`,
+      );
       return 0;
     }
 
@@ -56,13 +65,17 @@ export class RdlService {
 
   // Check if CSV/TXT source is available
   isRdlCsvAvailable(): boolean {
-    const txtPath = path.join(resolvedPaths.csvFolder, 'rdl_reports.txt');
-    const csvPath = path.join(resolvedPaths.csvFolder, 'rdl_reports.csv');
+    const txtPath = path.join(resolvedPaths.csvFolder, "rdl_reports.txt");
+    const csvPath = path.join(resolvedPaths.csvFolder, "rdl_reports.csv");
     return fs.existsSync(txtPath) || fs.existsSync(csvPath);
   }
 
   // Get RDL source status
-  getRdlSourceStatus(): { filesAvailable: boolean; databaseAvailable: boolean; databaseCount: number } {
+  getRdlSourceStatus(): {
+    filesAvailable: boolean;
+    databaseAvailable: boolean;
+    databaseCount: number;
+  } {
     const filesAvailable = fs.existsSync(resolvedPaths.rdlFolder);
     const databaseAvailable = this.isRdlCsvAvailable();
     return {
@@ -79,17 +92,20 @@ export class RdlService {
     }
 
     const result: RdlFileDto[] = [];
-    const filterLower = filter?.toLowerCase() || '';
+    const filterLower = filter?.toLowerCase() || "";
 
     for (const [key, report] of this.rdlReportsCache) {
       // Apply name filter
-      if (filterLower && !report.reportName.toLowerCase().includes(filterLower)) {
+      if (
+        filterLower &&
+        !report.reportName.toLowerCase().includes(filterLower)
+      ) {
         continue;
       }
 
-      const fileName = report.reportName.endsWith('.rdl')
+      const fileName = report.reportName.endsWith(".rdl")
         ? report.reportName
-        : report.reportName + '.rdl';
+        : report.reportName + ".rdl";
 
       const dto: RdlFileDto = {
         fileName,
@@ -101,7 +117,11 @@ export class RdlService {
         reportName: null,
       };
 
-      const existing = this.repos.report.findByFileName(fileName, 'DATABASE', report.reportPath);
+      const existing = this.repos.report.findByFileName(
+        fileName,
+        "DATABASE",
+        report.reportPath,
+      );
       if (existing) {
         dto.status = existing.status;
         dto.lastRunAt = this.formatForDisplay(existing.lastRunAt);
@@ -110,12 +130,14 @@ export class RdlService {
         dto.reportName = existing.reportName;
         dto.starred = existing.starred;
       } else {
-        dto.status = 'PENDING';
+        dto.status = "PENDING";
         dto.starred = false;
       }
 
       // Add execution history data if available
-      const execHistory = this.repos.executionHistory.findByPath(report.reportPath);
+      const execHistory = this.repos.executionHistory.findByPath(
+        report.reportPath,
+      );
       if (execHistory) {
         dto.executionCount = execHistory.executionCount;
         dto.lastExecutedAt = execHistory.lastExecutedAt;
@@ -132,7 +154,9 @@ export class RdlService {
 
       // Debug: log first few reports with their execution data
       if (result.length < 3) {
-        console.log(`Report: ${dto.fileName}, path: ${report.reportPath}, neverRan: ${dto.neverRan}, execCount: ${dto.executionCount}`);
+        console.log(
+          `Report: ${dto.fileName}, path: ${report.reportPath}, neverRan: ${dto.neverRan}, execCount: ${dto.executionCount}`,
+        );
       }
 
       result.push(dto);
@@ -157,20 +181,24 @@ export class RdlService {
       throw new Error(`RDL report not found in database: ${reportPath}`);
     }
 
-    const fileName = rdlReport.reportName.endsWith('.rdl')
+    const fileName = rdlReport.reportName.endsWith(".rdl")
       ? rdlReport.reportName
-      : rdlReport.reportName + '.rdl';
+      : rdlReport.reportName + ".rdl";
 
     // Get or create report (DATABASE source) - pass filePath to handle duplicate names
-    let report = this.repos.report.findByFileName(fileName, 'DATABASE', rdlReport.reportPath);
+    let report = this.repos.report.findByFileName(
+      fileName,
+      "DATABASE",
+      rdlReport.reportPath,
+    );
     if (!report) {
       report = {
         id: null,
         fileName,
         filePath: rdlReport.reportPath,
         reportName: null,
-        source: 'DATABASE',
-        status: 'PENDING',
+        source: "DATABASE",
+        status: "PENDING",
         starred: false,
         lastRunAt: null,
         errorMessage: null,
@@ -179,7 +207,7 @@ export class RdlService {
     }
 
     report!.filePath = rdlReport.reportPath;
-    report!.status = 'PROCESSING';
+    report!.status = "PROCESSING";
     report!.errorMessage = null;
     report = this.repos.report.save(report!);
 
@@ -218,13 +246,12 @@ export class RdlService {
       this.lineageService.buildLineage(report.id!);
 
       // Set status to COMPLETED
-      this.repos.report.updateStatus(report.id!, 'COMPLETED', null);
+      this.repos.report.updateStatus(report.id!, "COMPLETED", null);
       console.log(`Analysis complete for: ${fileName}`);
-
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`Error analyzing report: ${fileName}`, error);
-      this.repos.report.updateStatus(report.id!, 'ERROR', message);
+      this.repos.report.updateStatus(report.id!, "ERROR", message);
       throw error;
     }
   }
@@ -232,7 +259,7 @@ export class RdlService {
   // Analyze all from database
   analyzeAllFromDatabase(filter?: string): void {
     if (this.isProcessing) {
-      console.warn('Analysis already in progress');
+      console.warn("Analysis already in progress");
       return;
     }
 
@@ -242,7 +269,7 @@ export class RdlService {
     this.completedFiles = 0;
     this.errorFiles = 0;
     this.startTime = new Date();
-    this.currentFile = files.length > 0 ? files[0].fileName : '';
+    this.currentFile = files.length > 0 ? files[0].fileName : "";
 
     setImmediate(() => {
       try {
@@ -256,10 +283,12 @@ export class RdlService {
             console.error(`Error processing: ${file.fileName}`, error);
           }
         }
-        console.log(`Batch analysis complete: ${this.completedFiles} completed, ${this.errorFiles} errors`);
+        console.log(
+          `Batch analysis complete: ${this.completedFiles} completed, ${this.errorFiles} errors`,
+        );
       } finally {
         this.isProcessing = false;
-        this.currentFile = '';
+        this.currentFile = "";
       }
     });
   }
@@ -281,11 +310,14 @@ export class RdlService {
 
     const result: RdlFileDto[] = [];
     this.filePathCache.clear();
-    const filterLower = filter?.toLowerCase() || '';
+    const filterLower = filter?.toLowerCase() || "";
 
     // Recursively find all .rdl files (use forward slashes for glob on all platforms)
-    const normalizedFolder = folder.replace(/\\/g, '/');
-    const rdlFiles = glob.sync('**/*.rdl', { cwd: normalizedFolder, nocase: true });
+    const normalizedFolder = folder.replace(/\\/g, "/");
+    const rdlFiles = glob.sync("**/*.rdl", {
+      cwd: normalizedFolder,
+      nocase: true,
+    });
 
     for (const relPath of rdlFiles) {
       const filePath = path.join(folder, relPath);
@@ -308,7 +340,7 @@ export class RdlService {
         reportName: null,
       };
 
-      const existing = this.repos.report.findByFileName(fileName, 'FILES');
+      const existing = this.repos.report.findByFileName(fileName, "FILES");
       if (existing) {
         dto.status = existing.status;
         dto.lastRunAt = this.formatForDisplay(existing.lastRunAt);
@@ -319,7 +351,9 @@ export class RdlService {
 
         // Try to find execution history by report path if we have a report
         if (existing.filePath) {
-          const execHistory = this.repos.executionHistory.findByPath(existing.filePath);
+          const execHistory = this.repos.executionHistory.findByPath(
+            existing.filePath,
+          );
           if (execHistory) {
             dto.executionCount = execHistory.executionCount;
             dto.lastExecutedAt = execHistory.lastExecutedAt;
@@ -332,7 +366,7 @@ export class RdlService {
           }
         }
       } else {
-        dto.status = 'PENDING';
+        dto.status = "PENDING";
         dto.starred = false;
       }
 
@@ -353,7 +387,7 @@ export class RdlService {
     if (filePath && fs.existsSync(filePath)) {
       rdlFile = filePath;
     } else {
-      const existing = this.repos.report.findByFileName(fileName, 'FILES');
+      const existing = this.repos.report.findByFileName(fileName, "FILES");
       if (existing?.filePath && fs.existsSync(existing.filePath)) {
         rdlFile = existing.filePath;
       } else {
@@ -372,15 +406,15 @@ export class RdlService {
     }
 
     // Get or create report (FILES source)
-    let report = this.repos.report.findByFileName(fileName, 'FILES');
+    let report = this.repos.report.findByFileName(fileName, "FILES");
     if (!report) {
       report = {
         id: null,
         fileName,
         filePath: rdlFile,
         reportName: null,
-        source: 'FILES',
-        status: 'PENDING',
+        source: "FILES",
+        status: "PENDING",
         starred: false,
         lastRunAt: null,
         errorMessage: null,
@@ -389,7 +423,7 @@ export class RdlService {
     }
 
     report!.filePath = rdlFile;
-    report!.status = 'PROCESSING';
+    report!.status = "PROCESSING";
     report!.errorMessage = null;
     report = this.repos.report.save(report!);
 
@@ -428,20 +462,19 @@ export class RdlService {
       this.lineageService.buildLineage(report.id!);
 
       // Set status to COMPLETED
-      this.repos.report.updateStatus(report.id!, 'COMPLETED', null);
+      this.repos.report.updateStatus(report.id!, "COMPLETED", null);
       console.log(`Analysis complete for: ${fileName}`);
-
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`Error analyzing file: ${fileName}`, error);
-      this.repos.report.updateStatus(report.id!, 'ERROR', message);
+      this.repos.report.updateStatus(report.id!, "ERROR", message);
       throw error;
     }
   }
 
   analyzeAll(): void {
     if (this.isProcessing) {
-      console.warn('Analysis already in progress');
+      console.warn("Analysis already in progress");
       return;
     }
 
@@ -452,14 +485,14 @@ export class RdlService {
     this.completedFiles = 0;
     this.errorFiles = 0;
     this.startTime = new Date();
-    this.currentFile = files.length > 0 ? files[0].fileName : '';
+    this.currentFile = files.length > 0 ? files[0].fileName : "";
 
     setImmediate(() => {
       try {
         this.runAnalysisOnAllFilesInternal(files);
       } finally {
         this.isProcessing = false;
-        this.currentFile = '';
+        this.currentFile = "";
       }
     });
   }
@@ -475,7 +508,7 @@ export class RdlService {
       this.runAnalysisOnAllFilesInternal(files);
     } finally {
       this.isProcessing = false;
-      this.currentFile = '';
+      this.currentFile = "";
     }
   }
 
@@ -492,7 +525,9 @@ export class RdlService {
       }
     }
 
-    console.log(`Batch analysis complete: ${this.completedFiles} completed, ${this.errorFiles} errors`);
+    console.log(
+      `Batch analysis complete: ${this.completedFiles} completed, ${this.errorFiles} errors`,
+    );
   }
 
   getProcessingStatus(): ProcessingStatusDto {
@@ -510,13 +545,17 @@ export class RdlService {
     let averageSecondsPerFile = 0;
 
     if (this.startTime && running) {
-      elapsedSeconds = Math.floor((Date.now() - this.startTime.getTime()) / 1000);
+      elapsedSeconds = Math.floor(
+        (Date.now() - this.startTime.getTime()) / 1000,
+      );
 
       // Estimate remaining time based on average processing time
       if (processed > 0) {
         averageSecondsPerFile = elapsedSeconds / processed;
         const remaining = total - processed;
-        estimatedSecondsRemaining = Math.ceil(averageSecondsPerFile * remaining);
+        estimatedSecondsRemaining = Math.ceil(
+          averageSecondsPerFile * remaining,
+        );
       }
     }
 
@@ -536,14 +575,14 @@ export class RdlService {
 
   getPendingFiles(): string[] {
     return this.scanFolder()
-      .filter(f => f.status === 'PENDING')
-      .map(f => f.fileName);
+      .filter((f) => f.status === "PENDING")
+      .map((f) => f.fileName);
   }
 
   private formatForDisplay(timeStr: string | null): string | null {
     if (!timeStr) return null;
     try {
-      return dayjs(timeStr).format('MMM D, YYYY h:mm A');
+      return dayjs(timeStr).format("MMM D, YYYY h:mm A");
     } catch {
       return timeStr;
     }

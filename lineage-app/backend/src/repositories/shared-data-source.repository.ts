@@ -1,5 +1,5 @@
-import Database from 'better-sqlite3';
-import { SharedDataSource } from '../types/index.js';
+import Database from "better-sqlite3";
+import { SharedDataSource } from "../types/index.js";
 
 export class SharedDataSourceRepository {
   private db: Database.Database;
@@ -22,22 +22,30 @@ export class SharedDataSourceRepository {
   }
 
   findById(id: number): SharedDataSource | undefined {
-    const row = this.db.prepare('SELECT * FROM shared_data_sources WHERE id = ?').get(id);
+    const row = this.db
+      .prepare("SELECT * FROM shared_data_sources WHERE id = ?")
+      .get(id);
     return this.mapRow(row);
   }
 
   findByName(name: string): SharedDataSource | undefined {
-    const row = this.db.prepare('SELECT * FROM shared_data_sources WHERE data_source_name = ?').get(name);
+    const row = this.db
+      .prepare("SELECT * FROM shared_data_sources WHERE data_source_name = ?")
+      .get(name);
     return this.mapRow(row);
   }
 
   findByPath(path: string): SharedDataSource | undefined {
-    const row = this.db.prepare('SELECT * FROM shared_data_sources WHERE data_source_path = ?').get(path);
+    const row = this.db
+      .prepare("SELECT * FROM shared_data_sources WHERE data_source_path = ?")
+      .get(path);
     return this.mapRow(row);
   }
 
   findAll(): SharedDataSource[] {
-    const rows = this.db.prepare('SELECT * FROM shared_data_sources ORDER BY data_source_name').all();
+    const rows = this.db
+      .prepare("SELECT * FROM shared_data_sources ORDER BY data_source_name")
+      .all();
     return rows.map((row) => this.mapRow(row)!);
   }
 
@@ -52,7 +60,7 @@ export class SharedDataSourceRepository {
       dataSource.connectionString,
       dataSource.extension,
       dataSource.server,
-      dataSource.databaseName
+      dataSource.databaseName,
     );
     if (dataSource.id === null) {
       dataSource.id = result.lastInsertRowid as number;
@@ -67,18 +75,27 @@ export class SharedDataSourceRepository {
     `);
     const insertMany = this.db.transaction((items: SharedDataSource[]) => {
       for (const ds of items) {
-        stmt.run(ds.dataSourceName, ds.dataSourcePath, ds.connectionString, ds.extension, ds.server, ds.databaseName);
+        stmt.run(
+          ds.dataSourceName,
+          ds.dataSourcePath,
+          ds.connectionString,
+          ds.extension,
+          ds.server,
+          ds.databaseName,
+        );
       }
     });
     insertMany(dataSources);
   }
 
   count(): number {
-    const row = this.db.prepare('SELECT COUNT(*) as count FROM shared_data_sources').get() as any;
+    const row = this.db
+      .prepare("SELECT COUNT(*) as count FROM shared_data_sources")
+      .get() as any;
     return row?.count || 0;
   }
 
   deleteAll(): void {
-    this.db.prepare('DELETE FROM shared_data_sources').run();
+    this.db.prepare("DELETE FROM shared_data_sources").run();
   }
 }

@@ -1,25 +1,37 @@
 // Report status enum
-export type ReportStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'ERROR';
+export type ReportStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "ERROR";
 
 // Dataset command type enum
-export type CommandType = 'StoredProcedure' | 'Text' | 'SharedDataSet';
+export type CommandType = "StoredProcedure" | "Text" | "SharedDataSet";
 
 // Lineage node type enum
 export type NodeType =
-  | 'REPORT' | 'DATASET' | 'PROC' | 'VIEW' | 'TABLE' | 'SHARED_DATASET'
-  | 'PROC_NOT_FOUND' | 'VIEW_NOT_FOUND' | 'TABLE_NOT_FOUND' | 'SHARED_DATASET_NOT_FOUND';
+  | "REPORT"
+  | "DATASET"
+  | "PROC"
+  | "VIEW"
+  | "TABLE"
+  | "SHARED_DATASET"
+  | "PROC_NOT_FOUND"
+  | "VIEW_NOT_FOUND"
+  | "TABLE_NOT_FOUND"
+  | "SHARED_DATASET_NOT_FOUND";
 
 // Lineage relationship enum
-export type Relationship = 'CONTAINS' | 'CALLS' | 'READS_FROM' | 'USES';
+export type Relationship = "CONTAINS" | "CALLS" | "READS_FROM" | "USES";
 
 // Discovery method enum
-export type DiscoveryMethod = 'REGEX' | 'SQL_SERVER' | 'BOTH' | 'DYNAMIC';
+export type DiscoveryMethod = "REGEX" | "SQL_SERVER" | "BOTH" | "DYNAMIC";
 
 // Source table type enum
-export type SourceType = 'LOCAL' | 'LINKED_SERVER' | 'DYNAMIC' | 'CROSS_DATABASE';
+export type SourceType =
+  | "LOCAL"
+  | "LINKED_SERVER"
+  | "DYNAMIC"
+  | "CROSS_DATABASE";
 
 // RDL Source type
-export type RdlSource = 'FILES' | 'DATABASE';
+export type RdlSource = "FILES" | "DATABASE";
 
 // Report entity
 export interface Report {

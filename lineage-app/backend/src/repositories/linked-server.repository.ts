@@ -1,5 +1,5 @@
-import Database from 'better-sqlite3';
-import { LinkedServer } from '../types/index.js';
+import Database from "better-sqlite3";
+import { LinkedServer } from "../types/index.js";
 
 export class LinkedServerRepository {
   private db: Database.Database;
@@ -19,12 +19,16 @@ export class LinkedServerRepository {
   }
 
   findByAlias(alias: string): LinkedServer | undefined {
-    const row = this.db.prepare('SELECT * FROM linked_servers WHERE UPPER(alias) = UPPER(?)').get(alias);
+    const row = this.db
+      .prepare("SELECT * FROM linked_servers WHERE UPPER(alias) = UPPER(?)")
+      .get(alias);
     return this.mapRow(row);
   }
 
   findAll(): LinkedServer[] {
-    const rows = this.db.prepare('SELECT * FROM linked_servers ORDER BY alias').all();
+    const rows = this.db
+      .prepare("SELECT * FROM linked_servers ORDER BY alias")
+      .all();
     return rows.map((row) => this.mapRow(row)!);
   }
 
@@ -54,11 +58,13 @@ export class LinkedServerRepository {
   }
 
   count(): number {
-    const row = this.db.prepare('SELECT COUNT(*) as count FROM linked_servers').get() as any;
+    const row = this.db
+      .prepare("SELECT COUNT(*) as count FROM linked_servers")
+      .get() as any;
     return row?.count || 0;
   }
 
   deleteAll(): void {
-    this.db.prepare('DELETE FROM linked_servers').run();
+    this.db.prepare("DELETE FROM linked_servers").run();
   }
 }

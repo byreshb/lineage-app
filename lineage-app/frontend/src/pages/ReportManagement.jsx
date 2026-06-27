@@ -922,6 +922,23 @@ function ReportManagement() {
     }
   }
 
+  const handleExportCffCsv = async () => {
+    try {
+      setShowExportDropdown(null)
+      const response = await api.exportCffCsv()
+      const url = window.URL.createObjectURL(response.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'custom_field_usage.csv'
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (err) {
+      setError('Error exporting custom fields: ' + err.message)
+    }
+  }
+
   const handleExportPbiAllHtml = async () => {
     try {
       setShowExportDropdown(null)
@@ -1071,6 +1088,12 @@ function ReportManagement() {
               <button onClick={() => handleExportUniqueCustomTables(true)} disabled={starredCount + linkedStarredCount + pbiStarredCount === 0} title="Same as above but only from starred reports">
                 <span className="export-item-name">Unique Tables (Starred)</span>
                 <span className="export-item-desc">Table names only, deduplicated</span>
+              </button>
+              <hr />
+              <div className="export-section-label">Custom Fields (columns from custom tables)</div>
+              <button onClick={handleExportCffCsv} disabled={starredCount + linkedStarredCount + pbiStarredCount === 0} title="All columns used from custom tables in starred reports - includes stats summary">
+                <span className="export-item-name">Custom Fields (Starred)</span>
+                <span className="export-item-desc">Columns from custom tables + stats</span>
               </button>
             </div>
           )}

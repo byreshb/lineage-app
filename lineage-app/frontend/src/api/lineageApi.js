@@ -264,6 +264,11 @@ export const getStarredLinkedReportsCount = () => {
   return api.get('/metadata/linked-reports/starred/count')
 }
 
+// Custom Field Finder (CFF) - columns from custom tables (ending with "+")
+export const exportCffCsv = () => {
+  return api.get('/reports/cff/export', { responseType: 'blob' })
+}
+
 export default {
   getAppConfig,
   loadMetadata,
@@ -328,5 +333,7 @@ export default {
   exportUniqueTableColumns,
   // Custom tables CSV exports
   exportCustomTablesByReport,
-  exportUniqueCustomTablesCsv
+  exportUniqueCustomTablesCsv,
+  // Custom Field Finder (CFF)
+  exportCffCsv
 }

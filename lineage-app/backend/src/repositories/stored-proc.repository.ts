@@ -1,5 +1,5 @@
-import Database from 'better-sqlite3';
-import { StoredProcedure } from '../types/index.js';
+import Database from "better-sqlite3";
+import { StoredProcedure } from "../types/index.js";
 
 export class StoredProcRepository {
   private db: Database.Database;
@@ -19,27 +19,44 @@ export class StoredProcRepository {
   }
 
   findAll(): StoredProcedure[] {
-    const rows = this.db.prepare('SELECT * FROM stored_procedures ORDER BY schema_name, proc_name').all();
+    const rows = this.db
+      .prepare(
+        "SELECT * FROM stored_procedures ORDER BY schema_name, proc_name",
+      )
+      .all();
     return rows.map((row) => this.mapRow(row)!);
   }
 
   findById(id: number): StoredProcedure | undefined {
-    const row = this.db.prepare('SELECT * FROM stored_procedures WHERE id = ?').get(id);
+    const row = this.db
+      .prepare("SELECT * FROM stored_procedures WHERE id = ?")
+      .get(id);
     return this.mapRow(row);
   }
 
   findByName(procName: string): StoredProcedure | undefined {
-    const row = this.db.prepare('SELECT * FROM stored_procedures WHERE proc_name = ?').get(procName);
+    const row = this.db
+      .prepare("SELECT * FROM stored_procedures WHERE proc_name = ?")
+      .get(procName);
     return this.mapRow(row);
   }
 
-  findBySchemaAndName(schemaName: string, procName: string): StoredProcedure | undefined {
-    const row = this.db.prepare('SELECT * FROM stored_procedures WHERE schema_name = ? AND proc_name = ?').get(schemaName, procName);
+  findBySchemaAndName(
+    schemaName: string,
+    procName: string,
+  ): StoredProcedure | undefined {
+    const row = this.db
+      .prepare(
+        "SELECT * FROM stored_procedures WHERE schema_name = ? AND proc_name = ?",
+      )
+      .get(schemaName, procName);
     return this.mapRow(row);
   }
 
   findByNameLike(pattern: string): StoredProcedure[] {
-    const rows = this.db.prepare('SELECT * FROM stored_procedures WHERE proc_name LIKE ?').all(`%${pattern}%`);
+    const rows = this.db
+      .prepare("SELECT * FROM stored_procedures WHERE proc_name LIKE ?")
+      .all(`%${pattern}%`);
     return rows.map((row) => this.mapRow(row)!);
   }
 
@@ -69,11 +86,13 @@ export class StoredProcRepository {
   }
 
   count(): number {
-    const row = this.db.prepare('SELECT COUNT(*) as count FROM stored_procedures').get() as any;
+    const row = this.db
+      .prepare("SELECT COUNT(*) as count FROM stored_procedures")
+      .get() as any;
     return row?.count || 0;
   }
 
   deleteAll(): void {
-    this.db.prepare('DELETE FROM stored_procedures').run();
+    this.db.prepare("DELETE FROM stored_procedures").run();
   }
 }

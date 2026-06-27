@@ -423,3 +423,53 @@ Shows all columns from tables used by starred reports, comparing SQL2 vs New Sys
 - First tries to match using the report's schema (e.g., `syspro.ArTrnDetail`)
 - If table exists in multiple schemas in SQL2, prefers the schema matching the report
 - Falls back to searching by table name only if not found in report's schema
+
+### Custom Field Finder (CFF) Export
+
+The CFF feature identifies columns from **custom tables** (tables ending with `+`) used across all starred reports.
+
+**API Endpoint:**
+```
+GET /api/reports/cff/export
+```
+
+**CSV Output Format:**
+
+| Column | Description |
+|--------|-------------|
+| ReportType | SSRS or PowerBI |
+| ReportName | Name of the report |
+| ReportPath | Full path (SSRS only) |
+| EntityType | VIEW, PROC, or DATASET |
+| EntityName | Name of view/proc containing the column |
+| CustomTableSchema | Schema of the custom table |
+| CustomTableName | Custom table name (ends with +) |
+| ColumnName | Column being used from custom table |
+| UsageType | SELECT, WHERE, JOIN, etc. |
+| ExtractionStatus | OK, DYNAMIC_SQL, PARSE_ERROR, UNKNOWN |
+| InSQL2 | Yes/No - column exists in sql2_columns? |
+| SQL2_DataType | Data type from SQL2 metadata |
+| InNewSyspro | Yes/No - column exists in trn1_columns? |
+| TRN1_DataType | Data type from TRN1 metadata |
+
+**How CFF Works:**
+1. For each starred report, get all lineage edges (DATASET→PROC→VIEW→TABLE chains)
+2. Find all edges where target is a custom table (ends with `+`)
+3. For each custom table edge, trace back through all calling entities (VIEWs, PROCs, DATASETs)
+4. Extract columns from each entity's SQL definition using `node-sql-parser`
+5. Look up column metadata from `sql2_columns` and `trn1_columns`
+
+**ExtractionStatus Values:**
+
+| Status | Meaning |
+|--------|---------|
+| OK | Column successfully extracted from SQL |
+| DYNAMIC_SQL | Entity uses EXEC(@sql) - columns built at runtime |
+| PARSE_ERROR | SQL parser failed - complex/non-standard syntax |
+| UNKNOWN | Column table couldn't be determined |
+| SELECT_STAR | `SELECT *` used - all columns from table |
+
+**Current Stats (27 starred reports):**
+- 17 unique custom tables
+- 96 unique custom columns
+- 1,410 total CFF entries

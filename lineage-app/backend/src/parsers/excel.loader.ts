@@ -1,6 +1,6 @@
-import XLSX from 'xlsx';
-import path from 'path';
-import fs from 'fs';
+import XLSX from "xlsx";
+import path from "path";
+import fs from "fs";
 
 export interface PbiExcelRow {
   pbiFile: string;
@@ -30,9 +30,11 @@ export function loadPbiExcel(filePath: string): PbiExcelRow[] {
   const workbook = XLSX.readFile(filePath);
 
   // Look for "Source Tables" sheet
-  const sheetName = 'Source Tables';
+  const sheetName = "Source Tables";
   if (!workbook.SheetNames.includes(sheetName)) {
-    throw new Error(`Sheet "${sheetName}" not found in Excel file. Available sheets: ${workbook.SheetNames.join(', ')}`);
+    throw new Error(
+      `Sheet "${sheetName}" not found in Excel file. Available sheets: ${workbook.SheetNames.join(", ")}`,
+    );
   }
 
   const sheet = workbook.Sheets[sheetName];
@@ -49,10 +51,10 @@ export function loadPbiExcel(filePath: string): PbiExcelRow[] {
     if (!row || row.length === 0) continue;
 
     // Column indices: A=0, B=1, F=5, H=7
-    const pbiFile = String(row[0] || '').trim();
-    const pbiTable = String(row[1] || '').trim();
-    const sourceDatabase = String(row[5] || '').trim();
-    const sourceViewOrTable = String(row[7] || '').trim();
+    const pbiFile = String(row[0] || "").trim();
+    const pbiTable = String(row[1] || "").trim();
+    const sourceDatabase = String(row[5] || "").trim();
+    const sourceViewOrTable = String(row[7] || "").trim();
 
     // Skip rows without essential data
     if (!pbiFile || !sourceViewOrTable) continue;
@@ -73,5 +75,5 @@ export function loadPbiExcel(filePath: string): PbiExcelRow[] {
  * Get default path for PBI Excel file in data folder
  */
 export function getDefaultPbiExcelPath(dataFolder: string): string {
-  return path.join(dataFolder, 'FP Reporting_DataSourcesMapping.xlsx');
+  return path.join(dataFolder, "FP Reporting_DataSourcesMapping.xlsx");
 }
