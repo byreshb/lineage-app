@@ -58,6 +58,31 @@ export class ViewRepository {
     return this.mapRow(row);
   }
 
+  /**
+   * Find ALL views matching a name (there may be multiple with same name in different schemas)
+   * Ordered by schema preference: syspro first (most likely to have custom tables), then others
+   */
+  findAllByName(viewName: string): View[] {
+    // Handle schema-prefixed names
+    if (viewName.includes(".")) {
+      const parts = viewName.split(".");
+      const schema = parts[0];
+      const name = parts.slice(1).join(".");
+      const rows = this.db
+        .prepare("SELECT * FROM views WHERE schema_name = ? AND view_name = ?")
+        .all(schema, name);
+      return rows.map((row) => this.mapRow(row)!);
+    }
+    // Return all views with this name, preferring syspro schema first
+    const rows = this.db
+      .prepare(`
+        SELECT * FROM views WHERE view_name = ?
+        ORDER BY CASE WHEN schema_name = 'syspro' THEN 0 ELSE 1 END, schema_name
+      `)
+      .all(viewName);
+    return rows.map((row) => this.mapRow(row)!);
+  }
+
   findByNameLike(pattern: string): View[] {
     const rows = this.db
       .prepare("SELECT * FROM views WHERE view_name LIKE ?")

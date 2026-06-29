@@ -35,7 +35,24 @@ export interface CustomFieldUsage {
 }
 
 export class CffService {
+  // Cache for extracted columns to avoid re-parsing the same SQL
+  private columnCache = new Map<
+    string,
+    Array<{
+      columnName: string;
+      usageType: string;
+      status: "OK" | "DYNAMIC_SQL" | "PARSE_ERROR" | "UNKNOWN" | "SELECT_STAR";
+    }>
+  >();
+
   constructor(private repos: Repositories) {}
+
+  /**
+   * Clear the column extraction cache (call before a new full export)
+   */
+  private clearCache(): void {
+    this.columnCache.clear();
+  }
 
   /**
    * Find custom fields for a single SSRS report
@@ -57,6 +74,9 @@ export class CffService {
    * Find custom fields for all starred reports (SSRS + Power BI)
    */
   findCustomFieldsForAllReports(): CustomFieldUsage[] {
+    // Clear cache for fresh export
+    this.clearCache();
+
     const results: CustomFieldUsage[] = [];
 
     // Process starred SSRS template reports
@@ -291,10 +311,13 @@ export class CffService {
       }
 
       // Get the source entity definition to extract columns
+      // For views, try ALL matching views since there may be duplicates in different schemas
       let definition: string | null = null;
       if (sourceEntityType === "VIEW") {
-        const view = this.repos.view.findByName(sourceEntityName);
-        definition = view?.definition || null;
+        definition = this.findViewDefinitionWithCustomTable(
+          sourceEntityName,
+          tableName,
+        );
       } else if (sourceEntityType === "PROC") {
         const proc = this.repos.storedProc.findByName(sourceEntityName);
         definition = proc?.definition || null;
@@ -427,6 +450,13 @@ export class CffService {
     usageType: string;
     status: "OK" | "DYNAMIC_SQL" | "PARSE_ERROR" | "UNKNOWN" | "SELECT_STAR";
   }> {
+    // Check cache first - key is sql hash + tableName
+    const cacheKey = `${tableName.toLowerCase()}:${sql?.substring(0, 100) || "null"}`;
+    const cached = this.columnCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const results: Array<{
       columnName: string;
       usageType: string;
@@ -516,6 +546,8 @@ export class CffService {
       }
     }
 
+    // Cache results for reuse
+    this.columnCache.set(cacheKey, results);
     return results;
   }
 
@@ -529,11 +561,13 @@ export class CffService {
     const aliasMap = new Map<string, string>();
     const tableNameLower = tableName.toLowerCase();
 
-    // Pattern to match table aliases
+    // Pattern to match table aliases - order matters, more specific patterns first
     const patterns = [
-      // [schema].[table] AS alias or [schema].[table] alias
+      // [schema].[table] AS alias or [schema].[table] alias (both bracketed)
       /(?:FROM|JOIN)\s+(?:\[([^\]]+)\]\.)?\[([^\]]+)\]\s+(?:AS\s+)?(\w+)/gi,
-      // schema.table AS alias or schema.table alias
+      // schema.[table] AS alias (schema unbracketed, table bracketed - common in T-SQL)
+      /(?:FROM|JOIN)\s+(?:(\w+)\.)?\[([^\]]+)\]\s+(?:AS\s+)?(\w+)/gi,
+      // schema.table AS alias or schema.table alias (neither bracketed)
       /(?:FROM|JOIN)\s+(?:(\w+)\.)?(\w+)\s+(?:AS\s+)?(\w+)(?!\s*\.)/gi,
     ];
 
@@ -574,6 +608,38 @@ export class CffService {
   }
 
   /**
+   * Find view definition that contains the custom table reference.
+   * When multiple views have the same name (e.g., bi.vSorDetailRep and syspro.vSorDetailRep),
+   * this method tries each one and returns the definition that actually references the custom table.
+   */
+  private findViewDefinitionWithCustomTable(
+    viewName: string,
+    customTableName: string,
+  ): string | null {
+    const views = this.repos.view.findAllByName(viewName);
+    if (views.length === 0) return null;
+
+    // If only one view, return it
+    if (views.length === 1) {
+      return views[0].definition || null;
+    }
+
+    // Multiple views with same name - find the one that references the custom table
+    const customTablePattern = new RegExp(
+      customTableName.replace(/[+]/g, "\\+"),
+      "i",
+    );
+    for (const view of views) {
+      if (view.definition && customTablePattern.test(view.definition)) {
+        return view.definition;
+      }
+    }
+
+    // Fallback to first view (syspro preferred due to ORDER BY in findAllByName)
+    return views[0].definition || null;
+  }
+
+  /**
    * Find custom fields for a Power BI report
    */
   private findCustomFieldsForPbiReport(
@@ -608,6 +674,7 @@ export class CffService {
 
       let customTableName = edge.targetName;
       const sourceEntityName = edge.sourceName;
+      const sourceEntityType = edge.sourceType as "VIEW" | "PROC" | "PBI_TABLE";
 
       // Handle @DYNAMIC. prefix from dynamic SQL tables
       if (customTableName.startsWith("@DYNAMIC.")) {
@@ -623,9 +690,31 @@ export class CffService {
         tableName = parts.slice(1).join(".");
       }
 
-      // Get view definition
-      const view = this.repos.view.findByName(sourceEntityName);
-      const definition = view?.definition || null;
+      // Get the source entity definition to extract columns (same logic as SSRS)
+      // For views, try ALL matching views since there may be duplicates in different schemas
+      let definition: string | null = null;
+      if (sourceEntityType === "VIEW") {
+        definition = this.findViewDefinitionWithCustomTable(
+          sourceEntityName,
+          tableName,
+        );
+      } else if (sourceEntityType === "PROC") {
+        const proc = this.repos.storedProc.findByName(sourceEntityName);
+        definition = proc?.definition || null;
+      } else if (sourceEntityType === "PBI_TABLE") {
+        // Power BI tables may reference a view/table - check pbi_tables
+        const pbiTables = this.repos.pbiTable.findByReportId(reportId);
+        const pbiTable = pbiTables.find(
+          (t) => t.tableName === sourceEntityName,
+        );
+        // PBI tables reference underlying view/table via sourceViewOrTable field
+        if (pbiTable?.sourceViewOrTable) {
+          definition = this.findViewDefinitionWithCustomTable(
+            pbiTable.sourceViewOrTable,
+            tableName,
+          );
+        }
+      }
 
       // Extract columns
       const columnResults = this.extractColumnsForCustomTable(
@@ -634,14 +723,16 @@ export class CffService {
         tableSchema,
       );
 
-      // Add results for the direct source VIEW
+      // Add results for the SOURCE entity (VIEW, PROC, or PBI_TABLE mapped to VIEW)
+      const mappedEntityType: "VIEW" | "PROC" | "DATASET" =
+        sourceEntityType === "PROC" ? "PROC" : "VIEW";
       for (const col of columnResults) {
         results.push({
           reportId,
           reportName,
           reportPath: "",
           reportType: "PowerBI",
-          entityType: "VIEW",
+          entityType: mappedEntityType,
           entityName: sourceEntityName,
           customTableSchema: tableSchema,
           customTableName: tableName,

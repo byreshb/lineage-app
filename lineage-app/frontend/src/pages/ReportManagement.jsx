@@ -85,6 +85,7 @@ function ReportManagement() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [exportingHtml, setExportingHtml] = useState(false)
+  const [exportingCff, setExportingCff] = useState(false)
   const [starredCount, setStarredCount] = useState(0)
   const [linkedStarredCount, setLinkedStarredCount] = useState(0)
 
@@ -925,6 +926,7 @@ function ReportManagement() {
   const handleExportCffCsv = async () => {
     try {
       setShowExportDropdown(null)
+      setExportingCff(true)
       const response = await api.exportCffCsv()
       const url = window.URL.createObjectURL(response.data)
       const a = document.createElement('a')
@@ -936,6 +938,8 @@ function ReportManagement() {
       document.body.removeChild(a)
     } catch (err) {
       setError('Error exporting custom fields: ' + err.message)
+    } finally {
+      setExportingCff(false)
     }
   }
 
@@ -1065,10 +1069,11 @@ function ReportManagement() {
         {/* Export Custom Tables Dropdown */}
         <div className="export-dropdown-container">
           <button
-            className="btn btn-secondary export-dropdown-btn"
+            className={`btn btn-secondary export-dropdown-btn ${exportingCff ? 'exporting' : ''}`}
             onClick={(e) => { e.stopPropagation(); setShowExportDropdown(showExportDropdown === 'custom' ? null : 'custom'); }}
+            disabled={exportingCff}
           >
-            Export Custom Tables ▼
+            {exportingCff ? 'Exporting Custom Fields...' : 'Export Custom Tables ▼'}
           </button>
           {showExportDropdown === 'custom' && (
             <div className="export-dropdown-menu export-dropdown-menu-wide">
@@ -1091,9 +1096,9 @@ function ReportManagement() {
               </button>
               <hr />
               <div className="export-section-label">Custom Fields (columns from custom tables)</div>
-              <button onClick={handleExportCffCsv} disabled={starredCount + linkedStarredCount + pbiStarredCount === 0} title="All columns used from custom tables in starred reports - includes stats summary">
-                <span className="export-item-name">Custom Fields (Starred)</span>
-                <span className="export-item-desc">Columns from custom tables + stats</span>
+              <button onClick={handleExportCffCsv} disabled={exportingCff || starredCount + linkedStarredCount + pbiStarredCount === 0} title="All columns used from custom tables in starred reports - includes stats summary">
+                <span className="export-item-name">{exportingCff ? 'Exporting...' : 'Custom Fields (Starred)'}</span>
+                <span className="export-item-desc">{exportingCff ? 'Please wait, parsing SQL...' : 'Columns from custom tables + stats'}</span>
               </button>
             </div>
           )}

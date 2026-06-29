@@ -426,6 +426,10 @@ Shows all columns from tables used by starred reports, comparing SQL2 vs New Sys
 
 ### Custom Field Finder (CFF) Export
 
+> **IMPORTANT:** CFF is also known as **Custom Form Fields**. When making changes to CFF code (`cff.service.ts`, `sql.analyzer.ts`), also update the CFF documentation in:
+> - This file (`CLAUDE.md`) - technical details
+> - `frontend/src/pages/HowItWorks.jsx` - user-facing documentation
+
 The CFF feature identifies columns **used from custom tables** (tables ending with `+`) by parsing SQL definitions of views, procs, and datasets across all starred reports.
 
 **What are Custom Tables?**
@@ -485,6 +489,22 @@ GET /api/reports/cff/export
 - **Fallback:** Regex patterns for T-SQL bracket syntax `[table].[column+]`
 - **Combined:** Both methods run, results deduplicated
 
+**SQL Alias Detection Patterns:**
+CFF handles multiple T-SQL syntax patterns for detecting table aliases:
+
+| Pattern | Example | Detected |
+|---------|---------|----------|
+| Both bracketed | `JOIN [schema].[Table+] AS T` | ✅ |
+| Mixed brackets | `JOIN schema.[Table+] AS T` | ✅ |
+| No brackets | `FROM schema.Table+ T` | ✅ |
+
+**Duplicate View Name Handling:**
+When multiple views have the same name in different schemas (e.g., `bi.vSorDetailRep` and `syspro.vSorDetailRep`):
+1. CFF retrieves ALL views matching the name
+2. Prefers `syspro` schema (most likely to have custom tables)
+3. Checks each view's SQL to find the one that actually references the custom table
+4. Uses that view's definition for column extraction
+
 **ExtractionStatus Values:**
 
 | Status | Meaning |
@@ -497,11 +517,12 @@ GET /api/reports/cff/export
 
 **Key Files:**
 - `backend/src/services/cff.service.ts` - Main CFF logic
+- `backend/src/repositories/view.repository.ts` - `findAllByName()` for duplicate view handling
 - `backend/src/parsers/sql.analyzer.ts` - `extractColumns()` function
 
 **Current Stats (27 starred reports):**
-- 17 unique custom tables
-- ~84 unique custom columns
-- ~1,400 total CFF entries
-- ~69% extraction success rate (OK)
-- ~81% columns found in SQL2 metadata
+- 18 unique custom tables
+- ~233 unique custom columns
+- ~8,400 total CFF entries
+- ~100% extraction success rate (OK)
+- ~100% columns found in SQL2 metadata

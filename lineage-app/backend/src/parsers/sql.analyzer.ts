@@ -393,9 +393,8 @@ function extractTablesWithParser(sql: string): TableReference[] {
         }
       }
     }
-  } catch (e) {
+  } catch {
     // Parser failed, will fall back to regex
-    console.debug(`SQL parser failed: ${(e as Error).message}`);
   }
 
   return tables;
@@ -763,9 +762,8 @@ export function extractColumns(sql: string | null): ColumnReference[] {
         }
       }
     }
-  } catch (e) {
-    // Parser failed - try regex fallback for basic column extraction
-    console.debug(`SQL parser columnList failed: ${(e as Error).message}`);
+  } catch {
+    // Parser failed - use regex fallback for basic column extraction
     return extractColumnsWithRegex(sql);
   }
 

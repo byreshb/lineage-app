@@ -1048,7 +1048,10 @@ PowerBI,Sales Dashboard,,SalesData,PowerBI,,,bi.vSalesSummary,dbo.vSalesDetail,,
       {/* Custom Field Finder (CFF) */}
       <section className="doc-section">
         <h2>Custom Field Finder (CFF)</h2>
-        <p>The CFF feature identifies columns from <strong>custom tables</strong> (tables ending with <code>+</code>) used across all starred reports.</p>
+        <p>
+          The CFF feature (also known as <strong>Custom Form Fields</strong>) identifies columns from <strong>custom tables</strong> (tables ending with <code>+</code>) used across all starred reports.
+          This helps track which custom Syspro extensions your reports depend on.
+        </p>
 
         <div className="process-step">
           <h3>What are Custom Tables?</h3>
@@ -1154,6 +1157,145 @@ PowerBI,Sales Dashboard,,SalesData,PowerBI,,,bi.vSalesSummary,dbo.vSalesDetail,,
             <strong>Use Case:</strong> Before migrating to new Syspro, use CFF to identify which custom fields your reports depend on,
             and whether those fields exist in the new system.
           </p>
+        </div>
+
+        <div className="process-step">
+          <h3>CFF Technical Details</h3>
+
+          <h4>1. Finding Custom Tables in Lineage</h4>
+          <p>CFF scans pre-built lineage edges looking for targets ending with <code>+</code>:</p>
+          <div className="code-example">
+            <pre>VIEW|syspro.vArCustomer → TABLE|ArCustomer+</pre>
+            <pre>PROC|GetCustomerData → TABLE|CusSorDetailMerch+</pre>
+          </div>
+
+          <h4>2. SQL Alias Detection</h4>
+          <p>When parsing SQL, CFF builds an alias map to track table references. It handles multiple T-SQL syntax patterns:</p>
+          <table className="info-table">
+            <thead>
+              <tr>
+                <th>SQL Pattern</th>
+                <th>Table</th>
+                <th>Alias</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>JOIN [schema].[Table+] AS T</code></td>
+                <td>Table+</td>
+                <td>T</td>
+              </tr>
+              <tr>
+                <td><code>JOIN schema.[Table+] AS T</code></td>
+                <td>Table+</td>
+                <td>T</td>
+              </tr>
+              <tr>
+                <td><code>FROM schema.Table+ T</code></td>
+                <td>Table+</td>
+                <td>T</td>
+              </tr>
+            </tbody>
+          </table>
+          <p className="note">
+            <strong>Mixed Bracket Syntax:</strong> T-SQL often uses <code>schema.[Table+]</code> (schema without brackets, table with brackets).
+            CFF handles all three bracket combinations.
+          </p>
+
+          <h4>3. Column Extraction Methods</h4>
+          <p>CFF uses two methods to extract column names from SQL:</p>
+          <ul>
+            <li><strong>SQL Parser:</strong> Uses <code>node-sql-parser</code> to parse T-SQL and extract column references</li>
+            <li><strong>Regex Fallback:</strong> Pattern matching for T-SQL bracket syntax the parser might miss</li>
+          </ul>
+          <p>Both methods run and results are combined (deduplicated).</p>
+
+          <h4>4. Handling Duplicate View Names</h4>
+          <p>
+            When multiple views have the same name in different schemas (e.g., <code>bi.vSorDetailRep</code> and <code>syspro.vSorDetailRep</code>),
+            CFF tries each view definition and uses the one that actually contains the custom table reference.
+          </p>
+          <div className="code-example">
+            <pre>Views with same name:</pre>
+            <pre>  bi.vSorDetailRep      → Does NOT have CusSorDetailMerch+</pre>
+            <pre>  syspro.vSorDetailRep  → DOES have CusSorDetailMerch+</pre>
+            <pre>CFF picks: syspro.vSorDetailRep</pre>
+          </div>
+
+          <h4>5. Cascade Tracing</h4>
+          <p>CFF traces through the entire call chain to find all entities using the custom table:</p>
+          <div className="code-example">
+            <pre>PROC → VIEW1 → VIEW2 → TABLE+</pre>
+            <pre>       ↑        ↑       ↑</pre>
+            <pre>      All three entities are recorded as using the custom table</pre>
+          </div>
+
+          <h4>6. Extraction Status Values</h4>
+          <table className="info-table">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Meaning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>OK</code></td>
+                <td>Column successfully extracted from SQL definition</td>
+              </tr>
+              <tr>
+                <td><code>SELECT_STAR</code></td>
+                <td>SQL uses <code>SELECT *</code> - columns expanded from metadata</td>
+              </tr>
+              <tr>
+                <td><code>DYNAMIC_SQL</code></td>
+                <td>Entity uses <code>EXEC(@sql)</code> - columns built at runtime</td>
+              </tr>
+              <tr>
+                <td><code>PARSE_ERROR</code></td>
+                <td>SQL parser failed - complex or non-standard syntax</td>
+              </tr>
+              <tr>
+                <td><code>UNKNOWN</code></td>
+                <td>Could not determine which table the column belongs to</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="process-step">
+          <h3>CFF vs Regular Lineage Export</h3>
+          <table className="info-table">
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th>Regular Lineage Export</th>
+                <th>CFF Export</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Focus</td>
+                <td>All tables used by reports</td>
+                <td>Only custom tables (ending with +)</td>
+              </tr>
+              <tr>
+                <td>Granularity</td>
+                <td>Table level</td>
+                <td>Column level</td>
+              </tr>
+              <tr>
+                <td>SQL Parsing</td>
+                <td>Table extraction only</td>
+                <td>Column extraction with alias resolution</td>
+              </tr>
+              <tr>
+                <td>Use Case</td>
+                <td>Understanding data flow</td>
+                <td>Migration planning for custom fields</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 

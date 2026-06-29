@@ -1118,11 +1118,19 @@ tbody tr:hover {
 
 .tables-section table {
   min-width: 800px;
+  table-layout: auto; /* Override fixed layout to allow columns to expand */
 }
 
 .tables-section h3 {
   margin-bottom: 1rem;
   color: #333;
+}
+
+/* Table name column - prevent truncation to show full name including + suffix */
+.tables-section .table-name {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
 }
 
 /* Reports list */
@@ -2163,6 +2171,29 @@ tbody tr:hover {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.export-dropdown-btn.exporting {
+  background: #fef3c7 !important;
+  border-color: #f59e0b !important;
+  color: #92400e !important;
+  cursor: wait !important;
+}
+
+.export-dropdown-btn.exporting::before {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #f59e0b;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .export-dropdown-menu {
